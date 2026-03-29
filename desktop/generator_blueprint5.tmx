@@ -2925,6 +2925,141 @@ QmCC
       <terrain name="8" tile="49" />
       <terrain name="9" tile="52" />
     </terraintypes>
+    <tile id="83" terrain="0,0,0,0">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="81" terrain="1,1,1,0">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="82" terrain="1,1,0,1">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="108" terrain="1,0,1,1">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="109" terrain="0,1,1,1">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="28" terrain="1,1,1,1">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="0" terrain="0,0,0,1">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="1" terrain="0,0,1,1">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="2" terrain="0,0,1,0">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="27" terrain="0,1,0,1">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="29" terrain="1,0,1,0">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="54" terrain="0,1,0,0">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="55" terrain="1,1,0,0">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="56" terrain="1,0,0,0">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="31" terrain="2,2,2,2">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="3" terrain="1,1,1,2">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="4" terrain="1,1,2,2">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="5" terrain="1,1,2,1">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="30" terrain="1,2,1,2">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="32" terrain="2,1,2,1">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="57" terrain="1,2,1,1">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="58" terrain="2,2,1,1">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="59" terrain="2,1,1,1">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="84" terrain="2,2,2,1">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="85" terrain="2,2,1,2">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="111" terrain="2,1,2,2">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
+    <tile id="112" terrain="1,2,2,2">
+      <properties>
+        <property name="water" value="" />
+      </properties>
+    </tile>
     <tile id="34" terrain="3,3,3,3" />
     <tile id="90" terrain="4,4,4,3" />
     <tile id="91" terrain="4,4,3,4" />
@@ -2995,11 +3130,7 @@ QmCC
     <tile id="106" terrain="9,9,8,9" />
     <tile id="132" terrain="9,8,9,9" />
     <tile id="133" terrain="8,9,9,9" />
-    <tile id="52" terrain="9,9,9,9">
-      <properties>
-        <property name="water-bridge" value="" />
-      </properties>
-    </tile>
+    <tile id="52" terrain="9,9,9,9" />
     <tile id="24" terrain="8,8,8,9" />
     <tile id="25" terrain="8,8,9,9" />
     <tile id="26" terrain="8,8,9,8" />
@@ -3008,196 +3139,6 @@ QmCC
     <tile id="78" terrain="8,9,8,8" />
     <tile id="79" terrain="9,9,8,8" />
     <tile id="80" terrain="9,8,8,8" />
-    <tile id="0">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="1">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="2">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="3">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="4">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="5">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="6">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="7">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="8">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="27">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="29">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="30">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="32">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="33">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="35">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="54">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="55">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="56">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="57">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="58">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="59">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="60">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="61">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="62">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="81">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="82">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="84">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="85">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="87">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="88">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="108">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="109">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="111">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="112">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="114">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="115">
-      <properties>
-        <property name="large-cliff" value="" />
-      </properties>
-    </tile>
-    <tile id="107">
-      <properties>
-        <property name="water-bridge" value="" />
-      </properties>
-    </tile>
-    <tile id="134">
-      <properties>
-        <property name="water-bridge" value="" />
-      </properties>
-    </tile>
   </tileset>
   <tileset firstgid="336" name="large-rock" columns="3" tilecount="15" tileheight="20" tilewidth="20">
     <properties>
