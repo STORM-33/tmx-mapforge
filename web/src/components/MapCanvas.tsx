@@ -87,6 +87,14 @@ export function MapCanvas({
   const viewportRef = useRef<HTMLDivElement>(null);
   const activeRenderModeRef = useRef<RenderMode>("sampled");
   const drawingRef = useRef(false);
+  const panningRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startScrollLeft: number;
+    startScrollTop: number;
+    moved: boolean;
+  } | null>(null);
   const lastCellRef = useRef<string>("");
   const cursorCellRef = useRef<{ row: number; col: number } | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -412,17 +420,30 @@ export function MapCanvas({
     if (!cell) {
       return;
     }
+    if (event.button === 2) {
+      event.preventDefault();
+      const viewport = viewportRef.current;
+      if (!viewport) return;
+      panningRef.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        startScrollLeft: viewport.scrollLeft,
+        startScrollTop: viewport.scrollTop,
+        moved: false,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      event.currentTarget.classList.add("is-panning");
+      return;
+    }
     if (interactionMode === "polygon") {
-      if (event.button === 2) {
-        event.preventDefault();
-        onPolygonRightClick?.();
-      } else if (event.button === 0) {
+      if (event.button === 0) {
         onPolygonClick?.(cell.row, cell.col);
       }
       return;
     }
-    if (interactionMode === "click" && (event.button === 0 || event.button === 2)) {
-      onClickCell?.(cell.row, cell.col, event.button === 2);
+    if (interactionMode === "click" && event.button === 0) {
+      onClickCell?.(cell.row, cell.col, false);
       return;
     }
     if (interactionMode !== "draw") {
@@ -437,6 +458,22 @@ export function MapCanvas({
   };
 
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const pan = panningRef.current;
+    if (pan && pan.pointerId === event.pointerId) {
+      const deltaX = event.clientX - pan.startX;
+      const deltaY = event.clientY - pan.startY;
+      if (Math.abs(deltaX) + Math.abs(deltaY) > 4) pan.moved = true;
+      if (pan.moved) {
+        event.preventDefault();
+        const viewport = viewportRef.current;
+        if (viewport) {
+          viewport.scrollLeft = pan.startScrollLeft - deltaX;
+          viewport.scrollTop = pan.startScrollTop - deltaY;
+        }
+        return;
+      }
+    }
+
     // Update cursor position for polygon preview line
     if (interactionMode === "polygon") {
       const cell = eventToCell(event);
@@ -477,8 +514,26 @@ export function MapCanvas({
   };
 
   const stopDrawing = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (drawingRef.current) {
-      (event.currentTarget as HTMLDivElement).releasePointerCapture(event.pointerId);
+    const currentTarget = event.currentTarget as HTMLDivElement;
+    const pan = panningRef.current;
+    if (pan && pan.pointerId === event.pointerId) {
+      if (!pan.moved && event.type === "pointerup") {
+        const cell = eventToCell(event);
+        if (cell) {
+          if (interactionMode === "polygon") {
+            onPolygonRightClick?.();
+          } else if (interactionMode === "click") {
+            onClickCell?.(cell.row, cell.col, true);
+          } else if (interactionMode === "draw") {
+            onDraw?.([[cell.row, cell.col]], 0);
+          }
+        }
+      }
+      panningRef.current = null;
+      currentTarget.classList.remove("is-panning");
+    }
+    if ((drawingRef.current || pan?.pointerId === event.pointerId) && currentTarget.hasPointerCapture(event.pointerId)) {
+      currentTarget.releasePointerCapture(event.pointerId);
     }
     drawingRef.current = false;
     lastCellRef.current = "";

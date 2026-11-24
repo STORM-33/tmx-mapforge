@@ -566,6 +566,10 @@ button:disabled {
   cursor: pointer;
 }
 
+.map-canvas.is-panning {
+  cursor: grabbing;
+}
+
 .wall-mode-toggle {
   display: flex;
   gap: 0;
