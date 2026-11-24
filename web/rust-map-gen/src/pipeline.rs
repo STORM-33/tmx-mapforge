@@ -1324,19 +1324,33 @@ pub fn draw_brush_walls(
     points: &[[i32; 2]],
     value: i32,
     brush_size: usize,
+    stroke_start: bool,
+    stroke_end: bool,
 ) -> Result<(), String> {
     let h = state.height;
     let w = state.width;
     let coast = state.coastline_height_map.clone();
     let mirroring = state.mirroring.clone();
-    
-    state.brush_strokes_redo.clear();
-    
-    state.brush_strokes.push(crate::state::BrushStroke {
-        points: points.to_vec(),
-        value,
-        brush_size,
-    });
+
+    if stroke_start || state.active_brush_stroke.is_none() {
+        if let Some(previous) = state.active_brush_stroke.take() {
+            push_brush_history(&mut state.brush_strokes, previous);
+        }
+        state.brush_strokes_redo.clear();
+        state.active_brush_stroke = Some(crate::state::BrushStroke {
+            points: Vec::new(),
+            value,
+            brush_size,
+        });
+    }
+    if let Some(stroke) = &mut state.active_brush_stroke {
+        stroke.points.extend_from_slice(points);
+    }
+    let active_stroke = state
+        .active_brush_stroke
+        .as_ref()
+        .expect("brush stroke initialized")
+        .clone();
     
     let matrix = state.ensure_brush_wall_matrix();
     
@@ -1347,7 +1361,7 @@ pub fn draw_brush_walls(
         let row = *row_i32 as usize;
         let col = *col_i32 as usize;
 
-        for (br, bc) in expand_brush(row, col, brush_size, h, w) {
+        for (br, bc) in expand_brush(row, col, active_stroke.brush_size, h, w) {
             let mirrored = get_mirrored_positions(br, bc, h, w, &mirroring);
             for (mr, mc) in mirrored {
                 if mr >= h || mc >= w {
@@ -1358,18 +1372,38 @@ pub fn draw_brush_walls(
                         continue;
                     }
                 }
-                if value == 2 && matrix.get(mr, mc) == 0 {
+                if active_stroke.value == 2 && matrix.get(mr, mc) == 0 {
                     continue;
                 }
-                matrix.set(mr, mc, value);
+                matrix.set(mr, mc, active_stroke.value);
             }
+        }
+    }
+
+    if stroke_end {
+        if let Some(stroke) = state.active_brush_stroke.take() {
+            push_brush_history(&mut state.brush_strokes, stroke);
         }
     }
     
     Ok(())
 }
 
+fn push_brush_history(history: &mut Vec<crate::state::BrushStroke>, stroke: crate::state::BrushStroke) {
+    if stroke.points.is_empty() {
+        return;
+    }
+    const MAX_BRUSH_HISTORY: usize = 100;
+    history.push(stroke);
+    if history.len() > MAX_BRUSH_HISTORY {
+        history.remove(0);
+    }
+}
+
 pub fn undo_brush_stroke(state: &mut WizardState) -> Result<(), String> {
+    if let Some(active) = state.active_brush_stroke.take() {
+        push_brush_history(&mut state.brush_strokes, active);
+    }
     if state.brush_strokes.is_empty() {
         return Ok(());
     }
@@ -1468,6 +1502,7 @@ fn rebuild_brush_matrix_from_strokes(state: &mut WizardState) -> Result<(), Stri
 pub fn clear_brush_walls(state: &mut WizardState) {
     state.brush_strokes.clear();
     state.brush_strokes_redo.clear();
+    state.active_brush_stroke = None;
     state.brush_wall_matrix = Some(Matrix::zeros(state.height, state.width));
 }
 

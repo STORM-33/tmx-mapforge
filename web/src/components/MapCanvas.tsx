@@ -8,6 +8,7 @@ import { mirrorPolygonVertices } from "@/lib/polygonUtils";
 
 type InteractionMode = "none" | "draw" | "click" | "polygon";
 type RenderPreference = RenderMode | "auto";
+type DrawPhase = "start" | "continue" | "end" | "single";
 
 // Depth colors for polygon mode visualization
 const DEPTH_COLORS = [
@@ -36,7 +37,7 @@ type MapCanvasProps = {
   drawingPolygon?: Polygon | null;
   selectedPolygonId?: number | null;
   selectedEdgeIndex?: number | null;
-  onDraw?: (points: [number, number][], value: 0 | 1 | 2) => void;
+  onDraw?: (points: [number, number][], value: 0 | 1 | 2, phase: DrawPhase) => void;
   onClickCell?: (row: number, col: number, isRightClick: boolean) => void;
   onPolygonClick?: (row: number, col: number) => void;
   onPolygonRightClick?: () => void;
@@ -87,6 +88,7 @@ export function MapCanvas({
   const viewportRef = useRef<HTMLDivElement>(null);
   const activeRenderModeRef = useRef<RenderMode>("sampled");
   const drawingRef = useRef(false);
+  const activeDrawValueRef = useRef<0 | 1 | 2>(1);
   const panningRef = useRef<{
     pointerId: number;
     startX: number;
@@ -453,7 +455,8 @@ export function MapCanvas({
     (event.currentTarget as HTMLDivElement).setPointerCapture(event.pointerId);
     drawingRef.current = true;
     const value: 0 | 1 | 2 = event.button === 2 || eraseMode ? 0 : drawValue;
-    onDraw?.([[cell.row, cell.col]], value);
+    activeDrawValueRef.current = value;
+    onDraw?.([[cell.row, cell.col]], value, "start");
     lastCellRef.current = `${cell.row}:${cell.col}:${value}`;
   };
 
@@ -490,7 +493,7 @@ export function MapCanvas({
     if (!cell) {
       return;
     }
-    const value: 0 | 1 | 2 = event.buttons & 2 || eraseMode ? 0 : drawValue;
+    const value = activeDrawValueRef.current;
     const marker = `${cell.row}:${cell.col}:${value}`;
     if (marker === lastCellRef.current) {
       return;
@@ -505,12 +508,12 @@ export function MapCanvas({
         const cells = interpolateCells(prevRow, prevCol, cell.row, cell.col);
         // Skip the first cell — it was already drawn in the previous event
         if (cells.length > 1) {
-          onDraw?.(cells.slice(1), value);
+          onDraw?.(cells.slice(1), value, "continue");
           return;
         }
       }
     }
-    onDraw?.([[cell.row, cell.col]], value);
+    onDraw?.([[cell.row, cell.col]], value, "continue");
   };
 
   const stopDrawing = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -525,12 +528,15 @@ export function MapCanvas({
           } else if (interactionMode === "click") {
             onClickCell?.(cell.row, cell.col, true);
           } else if (interactionMode === "draw") {
-            onDraw?.([[cell.row, cell.col]], 0);
+            onDraw?.([[cell.row, cell.col]], 0, "single");
           }
         }
       }
       panningRef.current = null;
       currentTarget.classList.remove("is-panning");
+    }
+    if (drawingRef.current) {
+      onDraw?.([], activeDrawValueRef.current, "end");
     }
     if ((drawingRef.current || pan?.pointerId === event.pointerId) && currentTarget.hasPointerCapture(event.pointerId)) {
       currentTarget.releasePointerCapture(event.pointerId);

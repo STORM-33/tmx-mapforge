@@ -89,7 +89,16 @@ pub fn rpc_call(method: &str, params_json: &str) -> Result<JsValue, JsValue> {
                 let points = parse_points(&params, "points");
                 let value = get_i32(&params, &["value"]).unwrap_or(1);
                 let brush_size = get_usize(&params, &["brush_size"]).unwrap_or(1).max(1);
-                pipeline::draw_brush_walls(&mut state, &points, value, brush_size)?;
+                let stroke_start = get_bool(&params, &["stroke_start"]).unwrap_or(true);
+                let stroke_end = get_bool(&params, &["stroke_end"]).unwrap_or(true);
+                pipeline::draw_brush_walls(
+                    &mut state,
+                    &points,
+                    value,
+                    brush_size,
+                    stroke_start,
+                    stroke_end,
+                )?;
                 Ok(snapshot_only(&state))
             }
             "undo_brush" => {

@@ -140,6 +140,7 @@ pub struct WizardState {
     pub brush_wall_matrix: Option<Matrix>,
     pub brush_strokes: Vec<BrushStroke>,
     pub brush_strokes_redo: Vec<BrushStroke>,
+    pub active_brush_stroke: Option<BrushStroke>,
 
     // ========== POLYGON MODE STATE ==========
     pub polygon_depth_matrix: Option<Matrix>,
@@ -186,6 +187,7 @@ impl Default for WizardState {
             brush_wall_matrix: None,
             brush_strokes: Vec::new(),
             brush_strokes_redo: Vec::new(),
+            active_brush_stroke: None,
             polygon_depth_matrix: None,
             polygons: Vec::new(),
             mirrored_polygons: Vec::new(),
@@ -209,6 +211,7 @@ impl WizardState {
             self.brush_wall_matrix = None;
             self.brush_strokes.clear();
             self.brush_strokes_redo.clear();
+            self.active_brush_stroke = None;
             self.polygon_depth_matrix = None;
             self.polygons.clear();
             self.mirrored_polygons.clear();

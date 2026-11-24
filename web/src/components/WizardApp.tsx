@@ -376,8 +376,18 @@ export function WizardApp({ mapEngine }: { mapEngine: UseMapEngineResult }) {
 
   // ========== BRUSH MODE HANDLERS ==========
   const handleDrawBrushWalls = useCallback(
-    (points: [number, number][], value: 0 | 1 | 2) => {
-      void callAction("draw_brush_walls", { points, value, brush_size: brushSize }).catch((drawError) => {
+    (
+      points: [number, number][],
+      value: 0 | 1 | 2,
+      phase: "start" | "continue" | "end" | "single",
+    ) => {
+      void callAction("draw_brush_walls", {
+        points,
+        value,
+        brush_size: brushSize,
+        stroke_start: phase === "start" || phase === "single",
+        stroke_end: phase === "end" || phase === "single",
+      }).catch((drawError) => {
         setStatusText(
           `Brush draw error: ${drawError instanceof Error ? drawError.message : "unknown"}`,
         );
