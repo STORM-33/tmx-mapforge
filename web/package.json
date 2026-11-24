@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "jszip": "^3.10.1",
-    "next": "16.1.6",
+    "next": "16.4.6",
     "polygon-clipping": "^0.15.7",
     "react": "19.2.3",
     "react-dom": "19.2.3"
@@ -22,7 +22,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.1.6",
+    "eslint-config-next": "16.4.6",
     "tailwindcss": "^4",
     "typescript": "^5",
     "wasm-pack": "^0.15.1"
