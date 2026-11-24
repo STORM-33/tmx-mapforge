@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { HillDrawingMode, Polygon, RenderMode, WizardSnapshot } from "@/lib/types";
 import type { ExtractedTilesets } from "@/lib/tilesetExtractor";
 import { renderOverlay, renderSnapshotBase } from "@/lib/canvasRenderer";
@@ -84,12 +84,28 @@ export function MapCanvas({
   const baseCanvasRef = useRef<HTMLCanvasElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const polygonCanvasRef = useRef<HTMLCanvasElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const activeRenderModeRef = useRef<RenderMode>("sampled");
   const drawingRef = useRef(false);
   const lastCellRef = useRef<string>("");
   const cursorCellRef = useRef<{ row: number; col: number } | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
 
   const dimensions = useMemo(() => getDimensions(snapshot), [snapshot]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setViewportSize((previous) =>
+        previous.width === width && previous.height === height ? previous : { width, height },
+      );
+    });
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, []);
 
   // Compute mirrored ghost polygons
   const mirroredPolygons = useMemo(() => {
@@ -471,19 +487,37 @@ export function MapCanvas({
   const widthExpr = dimensions
     ? `min(100%, calc((100vh - 14rem) * ${dimensions.cols} / ${dimensions.rows}))`
     : "min(100%, calc(100vh - 14rem))";
+  const aspectRatio = dimensions ? dimensions.cols / dimensions.rows : 1;
+  const availableWidth = Math.max(0, viewportSize.width - 16);
+  const availableHeight = Math.max(0, viewportSize.height - 16);
+  const fitWidth = availableWidth > 0 && availableHeight > 0
+    ? Math.min(availableWidth, availableHeight * aspectRatio)
+    : 0;
+  const canvasWidth = fitWidth > 0 ? `${fitWidth * zoom}px` : widthExpr;
 
   return (
-    <div
-      className={`map-canvas ${interactionMode}`}
-      style={{ width: widthExpr }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={stopDrawing}
-      onContextMenu={(event) => event.preventDefault()}
-    >
-      <canvas id={`${canvasIdPrefix}-base`} ref={baseCanvasRef} className="map-layer" />
-      <canvas id={`${canvasIdPrefix}-overlay`} ref={overlayCanvasRef} className="map-layer overlay" />
-      <canvas id={`${canvasIdPrefix}-polygon`} ref={polygonCanvasRef} className="map-layer overlay" />
+    <div className="map-viewer">
+      <div className="map-zoom-controls" role="group" aria-label="Map zoom controls">
+        <button type="button" aria-label="Zoom out" title="Zoom out" onClick={() => setZoom((value) => Math.max(0.5, value - 0.25))} disabled={zoom <= 0.5}>−</button>
+        <span aria-live="polite">{Math.round(zoom * 100)}%</span>
+        <button type="button" aria-label="Zoom in" title="Zoom in" onClick={() => setZoom((value) => Math.min(4, value + 0.25))} disabled={zoom >= 4}>+</button>
+        <button type="button" onClick={() => setZoom(1)} disabled={zoom === 1}>Fit</button>
+      </div>
+      <div className="map-canvas-viewport" ref={viewportRef}>
+        <div
+          className={`map-canvas ${interactionMode}`}
+          style={{ width: canvasWidth }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={stopDrawing}
+          onPointerCancel={stopDrawing}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          <canvas id={`${canvasIdPrefix}-base`} ref={baseCanvasRef} className="map-layer" />
+          <canvas id={`${canvasIdPrefix}-overlay`} ref={overlayCanvasRef} className="map-layer overlay" />
+          <canvas id={`${canvasIdPrefix}-polygon`} ref={polygonCanvasRef} className="map-layer overlay" />
+        </div>
+      </div>
     </div>
   );
 }

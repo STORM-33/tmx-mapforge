@@ -476,8 +476,8 @@ button:disabled {
   border-radius: 0.6rem;
   padding: 0.6rem;
   display: flex;
-  justify-content: center;
-  align-items: start;
+  justify-content: stretch;
+  align-items: stretch;
   overflow: hidden;
   min-height: 0;
 }
@@ -487,6 +487,56 @@ button:disabled {
   border-radius: 0.35rem;
   border: 1px solid #334155;
   overflow: hidden;
+  flex: none;
+  margin: auto;
+}
+
+.map-viewer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.map-zoom-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  flex: none;
+  margin-bottom: 0.45rem;
+}
+
+.map-zoom-controls button {
+  min-width: 2rem;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid #334155;
+  border-radius: 0.35rem;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.map-zoom-controls button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.map-zoom-controls span {
+  min-width: 3.2rem;
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.map-canvas-viewport {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  padding: 0.25rem;
 }
 
 .map-layer {
