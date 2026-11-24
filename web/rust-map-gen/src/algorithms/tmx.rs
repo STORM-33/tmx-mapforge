@@ -18,6 +18,8 @@ use crate::state::{Matrix, WizardState};
 
 use crate::tiles::TILE_ID_OFFSET;
 
+const BUILDER_FIRST_GID: i32 = 351;
+
 
 
 pub(crate) fn write_tmx(state: &WizardState, blueprint_xml: &str) -> Result<Vec<u8>, String> {
@@ -33,10 +35,12 @@ pub(crate) fn write_tmx(state: &WizardState, blueprint_xml: &str) -> Result<Vec<
         .items_matrix
         .clone()
         .unwrap_or_else(|| Matrix::zeros(height_map.rows, height_map.cols));
-    let units_matrix = state
+    let mut units_matrix = state
         .units_matrix
         .clone()
         .unwrap_or_else(|| Matrix::zeros(height_map.rows, height_map.cols));
+
+    add_starting_builders(&mut units_matrix, height_map, &items_matrix);
 
     let h = id_matrix.rows;
     let w = id_matrix.cols;
@@ -65,6 +69,87 @@ pub(crate) fn write_tmx(state: &WizardState, blueprint_xml: &str) -> Result<Vec<
     )
     .map_err(|err| format!("Failed to serialize TMX XML: {err}"))?;
     Ok(out)
+}
+
+fn add_starting_builders(units: &mut Matrix, height_map: &Matrix, items: &Matrix) {
+    let mut command_centers = Vec::new();
+    for row in 0..units.rows {
+        for col in 0..units.cols {
+            let gid = units.get(row, col);
+            if (101..=150).contains(&gid) {
+                command_centers.push((row, col, gid));
+            }
+        }
+    }
+
+    for (row, col, command_center_gid) in command_centers {
+        let Some(team) = command_center_team(command_center_gid) else {
+            continue;
+        };
+        let Some((builder_row, builder_col)) =
+            find_builder_position(units, height_map, items, row, col)
+        else {
+            continue;
+        };
+        units.set(builder_row, builder_col, BUILDER_FIRST_GID + team);
+    }
+}
+
+fn command_center_team(gid: i32) -> Option<i32> {
+    let slot = gid.checked_sub(101)?;
+    if !(0..50).contains(&slot) {
+        return None;
+    }
+    let block = (slot / 10) * 10;
+    let offset = slot % 10;
+    Some(
+        block
+            + if offset < 5 {
+                offset * 2
+            } else {
+                (offset - 5) * 2 + 1
+            },
+    )
+}
+
+fn find_builder_position(
+    units: &Matrix,
+    height_map: &Matrix,
+    items: &Matrix,
+    center_row: usize,
+    center_col: usize,
+) -> Option<(usize, usize)> {
+    let inward = if center_row <= units.rows / 2 { 1isize } else { -1isize };
+    let mut offsets = Vec::new();
+    for row_offset in -12isize..=12 {
+        for col_offset in -12isize..=12 {
+            if row_offset.abs().max(col_offset.abs()) < 3 {
+                continue;
+            }
+            let distance_from_preferred =
+                (row_offset - inward * 5).abs() * 2 + col_offset.abs();
+            offsets.push((distance_from_preferred, row_offset, col_offset));
+        }
+    }
+    offsets.sort_by_key(|(distance, _, _)| *distance);
+
+    offsets.into_iter().find_map(|(_, row_offset, col_offset)| {
+        let row = center_row.checked_add_signed(row_offset)?;
+        let col = center_col.checked_add_signed(col_offset)?;
+        if row >= units.rows
+            || col >= units.cols
+            || row >= height_map.rows
+            || col >= height_map.cols
+            || row >= items.rows
+            || col >= items.cols
+            || height_map.get(row, col) <= 0
+            || items.get(row, col) != 0
+            || units.get(row, col) != 0
+        {
+            return None;
+        }
+        Some((row, col))
+    })
 }
 
 

@@ -41,6 +41,7 @@ from procedural_map_generator_functions import (
 logger = logging.getLogger(__name__)
 
 TILE_ID_OFFSET = 201
+BUILDER_FIRST_GID = 351
 
 # large-rock tileset: firstgid=336, so local ID offset from AutoLight = 135
 # Storing (135 + rock_local_id) in id_matrix means encoding gives 201 + 135 + local = 336 + local
@@ -733,7 +734,11 @@ def write_tmx(state: WizardState):
     height_map = state.height_map
     id_matrix = state.id_matrix
     items_matrix = state.items_matrix if state.items_matrix is not None else np.zeros_like(height_map)
-    units_matrix = state.units_matrix if state.units_matrix is not None else np.zeros_like(height_map)
+    units_matrix = np.array(
+        state.units_matrix if state.units_matrix is not None else np.zeros_like(height_map),
+        copy=True,
+    )
+    _add_starting_builders(units_matrix, height_map, items_matrix)
 
     h, w = id_matrix.shape
 
@@ -775,3 +780,39 @@ def write_tmx(state: WizardState):
     tree.write(output_file, encoding='UTF-8', xml_declaration=True)
     logger.info(f"Map has been created at: {output_file}")
     return output_file
+
+
+def _add_starting_builders(units_matrix, height_map, items_matrix):
+    """Add the normal builder marker paired with each command center."""
+    rows, cols = units_matrix.shape
+    command_centers = [
+        (int(row), int(col), int(units_matrix[row, col]))
+        for row, col in zip(*np.where((units_matrix >= 101) & (units_matrix <= 150)))
+    ]
+    for row, col, gid in command_centers:
+        slot = gid - 101
+        block = (slot // 10) * 10
+        offset = slot % 10
+        team = block + (offset * 2 if offset < 5 else (offset - 5) * 2 + 1)
+        inward = 1 if row <= rows // 2 else -1
+        offsets = [
+            (abs(row_offset - inward * 5) * 2 + abs(col_offset), row_offset, col_offset)
+            for row_offset in range(-12, 13)
+            for col_offset in range(-12, 13)
+            if max(abs(row_offset), abs(col_offset)) >= 3
+        ]
+        offsets.sort()
+
+        for _, row_offset, col_offset in offsets:
+            builder_row = row + row_offset
+            builder_col = col + col_offset
+            if not (0 <= builder_row < rows and 0 <= builder_col < cols):
+                continue
+            if height_map[builder_row, builder_col] <= 0:
+                continue
+            if items_matrix[builder_row, builder_col] != 0:
+                continue
+            if units_matrix[builder_row, builder_col] != 0:
+                continue
+            units_matrix[builder_row, builder_col] = BUILDER_FIRST_GID + team
+            break
