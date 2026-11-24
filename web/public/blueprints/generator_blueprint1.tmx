@@ -3011,6 +3011,311 @@ CFVWVKT/ftxdukt36S7dpbt0kyTE/wN2Kp7YFkJ+mAAAAABJRU5ErkJggg==
       </properties>
     </tile>
   </tileset>
+  <tileset firstgid="351" name="starting_builders" tilewidth="20" tileheight="20" tilecount="50" columns="10">
+    <properties>
+      <property name="embedded_png">iVBORw0KGgoAAAANSUhEUgAAAMgAAABkCAYAAADDhn8LAAAFCElEQVR4nO2dPU/bUBhGXz6GSnbakTDXzHHEisTSSuxU7Zyh/4itfwFGJKSuXlHTqUKE2Zexwpa6RKrude3YJbjN9mDOoyIS1z6RHt1X/oAjtl7/GL8zQsjabK/fTAhhQAj5R3bbb359/vm1fv3qy5v3Tx3EfvTyUtZBZ0B80klq8+/z5qDx3p7Fo5E556woima/D6endn5x8dRnwqM/G8J6aQakBqTTCnh0dGRpmgZIkiSWZVn47nN2dmbJwUFz3LrphEd/yQDWy3a90U/QcrJsDioeClssFjb/Ng8w/7r+qrPcW9rJyUnnFAWP/rIBrZdt/8ZD0unUbN/CqScAyyJMm3N5cyry39uvbWphKv101lB49FcMaL2ES6w4iqtJWpi5KA8HhGu0hwdz9/d/PqAM7+u4PDfLzdzY77e6loNHf0NaL809SABG1YH+NFN9UBRuaNpZTWRpdmc2t3mYzr8Dj/6GsF7CgPgN/kZmx3Ysu8s6d/d98fv74/yTgXbg0d9Q1stuPW3+cdh4fxymzE/TZX5pn5KP1WS14rcfj46b94vb2+a01WyDR38DWS/b9SOteBSHU9FsNgs3Kf4Gxz/6Go+rD6m/bFQ9Sw7Pk+O4OWXVHHj0Fw9ovey2r8XOz8/DTuGU5KoblvZjsGpH/687sesCj/6GsF46P0n3d+/hy9+k+AOda25iukDXPC1IJ5PHHwqP/gayXpoBaT/yCq+L6lquvb36z+6+TwUe/Q1hvawGxD8XLsvmpsbn0bS19q2u4VbXbOv2gUd/z329bNXCVP0TyDo37sYO3x4+gl27azs+qO76/fXd1dXV2t+UhEd/Q1gvzYDUUNsw//trxPDo7zmul86AEEK6QbklpCcMCCE9YUAI6QlOupgDzX5aveCkiznQ8FKp/nDSxRxoeKlUfzjpYg40vESqP5x0MQcanpPqDyddzIGGl0v1h5Mu5kDDK6X6w0kXc6DhZVL94aSLOdDwIqn+cNLFHGh4M6n+cNLFHGh4sVR/OOliDjS8Qqo/nHQxBxqeSfWHky7mQMOLpPrDSRdzoOFp9YeTPnCnGt5mwUknZINgFBLSEwaEkJ4wIIT0BCddzIFmP61ecNLFHGh4qVR/OOliDjS8VKo/nHQxBxpeItUfTrqYAw3PSfWHky7mQMPLpfrDSRdzoOGVUv3hpIs50PAyqf5w0sUcaHiRVH846WIONLyZVH846WIONLxYqj+cdDEHGl4h1R9OupgDDc+k+sNJF3Og4UVS/eGkiznQ8LT6w0nfMDjfL8uZ5++kE9ITjEJCesKAENITBoSQnuCkiznQ7KfVC066mAMNL5XqDyddzIGGl0r1h5Mu5kDDS6T6w0kXc6DhOan+cNLFHGh4uVR/OOliDjS8Uqo/nHQxBxpeJtUfTrqYAw0vkuoPJ13MgYY3k+oPJ13MgYYXS/WHky7mQMMrpPrDSRdzoOGZVH846WIONLxIqj+cdDEHGp5WfzjpA3eq4W0WnHRCNghGISE9YUAI6QkDQkhPcNLFHGj20+oFJ13MgYaXSvWHky7mQMNLpfrDSRdzoOElUv3hpIs50PCcVH846WIONLxcqj+cdDEHGl4p1R9OupgDDS+T6g8nXcyBhhdJ9YeTLuZAw5tJ9YeTLuZAw4ul+sNJF3Og4RVS/eGkiznQ8EyqP5x0MQcaXiTVH066mAMNT6s/nPQNg/P9spx5/k46IfZ0fgPpQL0inivN4gAAAABJRU5ErkJggg==</property>
+    </properties>
+    <tile id="0">
+      <properties>
+        <property name="team" value="0" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="1">
+      <properties>
+        <property name="team" value="1" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="2">
+      <properties>
+        <property name="team" value="2" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="3">
+      <properties>
+        <property name="team" value="3" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="4">
+      <properties>
+        <property name="team" value="4" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="5">
+      <properties>
+        <property name="team" value="5" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="6">
+      <properties>
+        <property name="team" value="6" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="7">
+      <properties>
+        <property name="team" value="7" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="8">
+      <properties>
+        <property name="team" value="8" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="9">
+      <properties>
+        <property name="team" value="9" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="10">
+      <properties>
+        <property name="team" value="10" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="11">
+      <properties>
+        <property name="team" value="11" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="12">
+      <properties>
+        <property name="team" value="12" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="13">
+      <properties>
+        <property name="team" value="13" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="14">
+      <properties>
+        <property name="team" value="14" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="15">
+      <properties>
+        <property name="team" value="15" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="16">
+      <properties>
+        <property name="team" value="16" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="17">
+      <properties>
+        <property name="team" value="17" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="18">
+      <properties>
+        <property name="team" value="18" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="19">
+      <properties>
+        <property name="team" value="19" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="20">
+      <properties>
+        <property name="team" value="20" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="21">
+      <properties>
+        <property name="team" value="21" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="22">
+      <properties>
+        <property name="team" value="22" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="23">
+      <properties>
+        <property name="team" value="23" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="24">
+      <properties>
+        <property name="team" value="24" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="25">
+      <properties>
+        <property name="team" value="25" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="26">
+      <properties>
+        <property name="team" value="26" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="27">
+      <properties>
+        <property name="team" value="27" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="28">
+      <properties>
+        <property name="team" value="28" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="29">
+      <properties>
+        <property name="team" value="29" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="30">
+      <properties>
+        <property name="team" value="30" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="31">
+      <properties>
+        <property name="team" value="31" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="32">
+      <properties>
+        <property name="team" value="32" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="33">
+      <properties>
+        <property name="team" value="33" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="34">
+      <properties>
+        <property name="team" value="34" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="35">
+      <properties>
+        <property name="team" value="35" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="36">
+      <properties>
+        <property name="team" value="36" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="37">
+      <properties>
+        <property name="team" value="37" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="38">
+      <properties>
+        <property name="team" value="38" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="39">
+      <properties>
+        <property name="team" value="39" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="40">
+      <properties>
+        <property name="team" value="40" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="41">
+      <properties>
+        <property name="team" value="41" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="42">
+      <properties>
+        <property name="team" value="42" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="43">
+      <properties>
+        <property name="team" value="43" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="44">
+      <properties>
+        <property name="team" value="44" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="45">
+      <properties>
+        <property name="team" value="45" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="46">
+      <properties>
+        <property name="team" value="46" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="47">
+      <properties>
+        <property name="team" value="47" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="48">
+      <properties>
+        <property name="team" value="48" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+    <tile id="49">
+      <properties>
+        <property name="team" value="49" />
+        <property name="unit" value="builder" />
+      </properties>
+    </tile>
+  </tileset>
   <layer name="Ground" width="200" height="200">
     <data encoding="base64" compression="gzip">
 Ground layer data

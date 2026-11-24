@@ -25,13 +25,17 @@ type MirroringMode =
   | "diagonal2"
   | "both";
 
-const DEFAULT_GRID = [
+const DEFAULT_GRID_5X5 = [
   [0, 0, 1, 0, 0],
   [0, 1, 1, 1, 0],
   [1, 1, 1, 1, 1],
   [0, 1, 1, 1, 0],
   [0, 0, 1, 0, 0],
 ];
+const DEFAULT_GRID = DEFAULT_GRID_5X5.flatMap((row) => {
+  const expandedRow = row.flatMap((cell) => [cell, cell]);
+  return [expandedRow, [...expandedRow]];
+});
 
 const clampValue = (value: number, min: number, max: number) =>
   Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : min;
@@ -165,7 +169,7 @@ export function WizardApp({ mapEngine }: { mapEngine: UseMapEngineResult }) {
       }
       return next;
     });
-  }, [mirroring]);
+  }, [mirroring, grid.length]);
 
   const blueprintCacheRef = useRef<Record<number, string>>({});
 
@@ -238,26 +242,6 @@ export function WizardApp({ mapEngine }: { mapEngine: UseMapEngineResult }) {
     blueprintCacheRef.current[pattern] = xml;
     return xml;
   }, []);
-
-  const handleToggleGridCell = useCallback(
-    (row: number, col: number) => {
-      setGrid((previous) => {
-        const size = previous.length;
-        const next = previous.map((line) => [...line]);
-        const newValue = next[row][col] ? 0 : 1;
-        for (const [mirrorRow, mirrorCol] of getMirroredCells(
-          row,
-          col,
-          size,
-          mirroring,
-        )) {
-          next[mirrorRow][mirrorCol] = newValue;
-        }
-        return next;
-      });
-    },
-    [mirroring],
-  );
 
   const handleGenerateCoastline = useCallback(async () => {
     // Clear any previous animation
@@ -392,8 +376,18 @@ export function WizardApp({ mapEngine }: { mapEngine: UseMapEngineResult }) {
 
   // ========== BRUSH MODE HANDLERS ==========
   const handleDrawBrushWalls = useCallback(
-    (points: [number, number][], value: 0 | 1 | 2) => {
-      void callAction("draw_brush_walls", { points, value, brush_size: brushSize }).catch((drawError) => {
+    (
+      points: [number, number][],
+      value: 0 | 1 | 2,
+      phase: "start" | "continue" | "end" | "single",
+    ) => {
+      void callAction("draw_brush_walls", {
+        points,
+        value,
+        brush_size: brushSize,
+        stroke_start: phase === "start" || phase === "single",
+        stroke_end: phase === "end" || phase === "single",
+      }).catch((drawError) => {
         setStatusText(
           `Brush draw error: ${drawError instanceof Error ? drawError.message : "unknown"}`,
         );
@@ -793,7 +787,7 @@ export function WizardApp({ mapEngine }: { mapEngine: UseMapEngineResult }) {
           disabled={busy || !ready}
           animating={animating}
           animationProgress={animationProgress}
-          onToggleCell={handleToggleGridCell}
+          onGridChange={setGrid}
           onHeightChange={setHeight}
           onWidthChange={setWidth}
           onMirroringChange={(value) => setMirroring(value as MirroringMode)}

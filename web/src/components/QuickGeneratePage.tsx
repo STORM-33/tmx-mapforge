@@ -11,6 +11,7 @@ import type { ExtractedTilesets } from "@/lib/tilesetExtractor";
 import { loadTilesetsFromBlueprint } from "@/lib/tilesetExtractor";
 import { MapCanvas } from "@/components/MapCanvas";
 import { NumberInput } from "@/components/NumberInput";
+import { GridEditor } from "@/components/GridEditor";
 import JSZip from "jszip";
 
 type MirroringMode =
@@ -30,13 +31,17 @@ const MIRROR_OPTIONS: MirroringMode[] = [
     "both",
 ];
 
-const DEFAULT_GRID = [
+const DEFAULT_GRID_5X5 = [
     [1, 0, 1, 0, 1],
     [1, 1, 0, 1, 1],
     [1, 0, 1, 0, 1],
     [1, 1, 0, 1, 1],
     [1, 0, 1, 0, 1],
 ];
+const DEFAULT_GRID = DEFAULT_GRID_5X5.flatMap((row) => {
+    const expandedRow = row.flatMap((cell) => [cell, cell]);
+    return [expandedRow, [...expandedRow]];
+});
 
 const clampValue = (value: number, min: number, max: number) =>
     Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : min;
@@ -110,7 +115,7 @@ export function QuickGeneratePage({ mapEngine }: { mapEngine: UseMapEngineResult
             }
             return next;
         });
-    }, [mirroring]);
+    }, [mirroring, grid.length]);
 
     const blueprintCacheRef = useRef<Record<number, string>>({});
 
@@ -146,21 +151,6 @@ export function QuickGeneratePage({ mapEngine }: { mapEngine: UseMapEngineResult
             return xml;
         },
         [],
-    );
-
-    const handleToggleGridCell = useCallback(
-        (row: number, col: number) => {
-            setGrid((prev) => {
-                const size = prev.length;
-                const next = prev.map((line) => [...line]);
-                const newValue = next[row][col] ? 0 : 1;
-                for (const [mr, mc] of getMirroredCells(row, col, size, mirroring)) {
-                    next[mr][mc] = newValue;
-                }
-                return next;
-            });
-        },
-        [mirroring],
     );
 
     // Animation timer
@@ -362,19 +352,7 @@ export function QuickGeneratePage({ mapEngine }: { mapEngine: UseMapEngineResult
                         <h2>Settings</h2>
                         <p>Configure all parameters, then hit Generate.</p>
 
-                        <div className="coast-grid">
-                            {grid.map((row, rowIndex) =>
-                                row.map((value, colIndex) => (
-                                    <button
-                                        key={`${rowIndex}-${colIndex}`}
-                                        type="button"
-                                        className={`grid-cell ${value ? "on" : "off"}`}
-                                        onClick={() => handleToggleGridCell(rowIndex, colIndex)}
-                                        disabled={isDisabled}
-                                    />
-                                )),
-                            )}
-                        </div>
+                        <GridEditor grid={grid} mirroring={mirroring} disabled={isDisabled} onGridChange={setGrid} />
 
                         <div className="control-grid">
                             <label>

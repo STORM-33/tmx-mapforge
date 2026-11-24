@@ -3,7 +3,7 @@ import os
 import logging
 from collections import deque
 from PyQt5.QtWidgets import (QApplication, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton,
-                             QSpinBox, QFileDialog, QWidget, QStackedWidget)
+                             QSpinBox, QSlider, QFileDialog, QWidget, QStackedWidget)
 from PyQt5.QtCore import QThread, pyqtSignal, QTimer, QSize, Qt
 from PyQt5.QtGui import QColor, QPixmap
 from generator_main import generate_map, PreviewState
@@ -102,6 +102,8 @@ class MapGeneratorWorker(QThread):
 
 
 class ColorChangingButton(QPushButton):
+    paintRequested = pyqtSignal(int, int)
+
     def __init__(self, color, row, col):
         super().__init__()
         self.setFixedSize(40, 40)
@@ -116,10 +118,22 @@ class ColorChangingButton(QPushButton):
     def toggleColor(self, color1, color2):
         self.setColor(color1 if self.color == color2 else color2)
 
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.paintRequested.emit(self.row, self.col)
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() & Qt.LeftButton:
+            target = QApplication.widgetAt(event.globalPos())
+            if isinstance(target, ColorChangingButton):
+                self.paintRequested.emit(target.row, target.col)
+        super().mouseMoveEvent(event)
+
 class MapGeneratorGUI(QWidget):
     def __init__(self):
         super().__init__()
-        self.button_size = 40
+        self.button_size = 26
         self.grid_spacing = 5
         self.pattern_colors = {
             "Forest": (QColor("green"), QColor("blue")),
@@ -128,15 +142,22 @@ class MapGeneratorGUI(QWidget):
             "Desert": (QColor("yellow"), QColor("brown")),
             "Jungle": (QColor("green"), QColor("blue"))
         }
-        self.matrix = [[1, 0, 1, 0, 1],
+        base_matrix = [[1, 0, 1, 0, 1],
                        [1, 1, 0, 1, 1],
                        [1, 0, 1, 0, 1],
                        [1, 1, 0, 1, 1],
                        [1, 0, 1, 0, 1]]
+        self.matrix = [
+            expanded_row[:]
+            for row in base_matrix
+            for expanded_row in ([cell for value in row for cell in (value, value)],) * 2
+        ]
         self.default_output_path = os.path.dirname(sys.executable)
         self._extractor_cache = {}
         self._renderer = None
         self._preview_queue = deque()
+        self.undo_stack = []
+        self.redo_stack = []
         self._preview_timer = QTimer()
         self._preview_timer.setInterval(150)
         self._preview_timer.timeout.connect(self._flush_next_preview)
@@ -146,25 +167,45 @@ class MapGeneratorGUI(QWidget):
     def initUI(self):
         layout = QVBoxLayout()
 
-        self.grid_widget = FixedGridWidget(5, 5, self.button_size, self.grid_spacing)
-        self.buttons = []
         default_pattern = "Forest"
-        color1, color2 = self.pattern_colors[default_pattern]
-        for i in range(5):
-            row = []
-            for j in range(5):
-                color = color1 if self.matrix[i][j] == 1 else color2
-                button = ColorChangingButton(color, i, j)
-                button.clicked.connect(self.button_clicked)
-                self.grid_widget.addButton(button, i, j)
-                row.append(button)
-            self.buttons.append(row)
-
         grid_container = QWidget()
         grid_container_layout = QVBoxLayout()
-        grid_container_layout.addWidget(self.grid_widget, alignment=Qt.AlignCenter)
+        grid_controls = QHBoxLayout()
+        self.grid_size_spin = self.create_spinbox(5, 30, len(self.matrix))
+        self.grid_size_spin.valueChanged.connect(self.resize_grid)
+        grid_controls.addWidget(QLabel("Grid size (5-30):"))
+        grid_controls.addWidget(self.grid_size_spin)
+        self.grid_tool_combo = QComboBox()
+        self.grid_tool_combo.addItems(["Brush", "Erase"])
+        grid_controls.addWidget(self.grid_tool_combo)
+        grid_container_layout.addLayout(grid_controls)
+        grid_history_controls = QHBoxLayout()
+        self.undo_button = QPushButton("Undo")
+        self.undo_button.clicked.connect(self.undo_grid)
+        grid_history_controls.addWidget(self.undo_button)
+        self.redo_button = QPushButton("Redo")
+        self.redo_button.clicked.connect(self.redo_grid)
+        grid_history_controls.addWidget(self.redo_button)
+        self.clear_button = QPushButton("Clear")
+        self.clear_button.clicked.connect(self.clear_grid)
+        grid_history_controls.addWidget(self.clear_button)
+        grid_container_layout.addLayout(grid_history_controls)
+        brush_size_controls = QHBoxLayout()
+        self.grid_brush_size_label = QLabel("Brush / Eraser size: 1")
+        brush_size_controls.addWidget(self.grid_brush_size_label)
+        self.grid_brush_size_slider = QSlider(Qt.Horizontal)
+        self.grid_brush_size_slider.setRange(1, min(10, len(self.matrix)))
+        self.grid_brush_size_slider.setValue(1)
+        self.grid_brush_size_slider.valueChanged.connect(
+            lambda value: self.grid_brush_size_label.setText(f"Brush / Eraser size: {value}")
+        )
+        brush_size_controls.addWidget(self.grid_brush_size_slider, 1)
+        grid_container_layout.addLayout(brush_size_controls)
+        self.grid_container_layout = grid_container_layout
         grid_container_layout.setContentsMargins(0, 0, 0, 0)
         grid_container.setLayout(grid_container_layout)
+
+        self.rebuild_grid()
 
         # Stacked widget: page 0 = grid, page 1 = preview
         self.stacked_widget = QStackedWidget()
@@ -224,6 +265,7 @@ class MapGeneratorGUI(QWidget):
         self.show()
 
         self.update_matrix()
+        self.refresh_grid_history()
 
     def select_output_directory(self):
         directory = QFileDialog.getExistingDirectory(self, "Select Output Directory", self.default_output_path)
@@ -246,39 +288,125 @@ class MapGeneratorGUI(QWidget):
         layout.addWidget(widget)
         return layout
 
-    def button_clicked(self):
-        sender = self.sender()
-        row, col = sender.row, sender.col
-        self.matrix[row][col] = 1 - self.matrix[row][col]
-        self.update_button_colors()
-        self.update_mirrored_buttons(row, col)
+    def rebuild_grid(self):
+        if hasattr(self, "grid_widget"):
+            self.grid_container_layout.removeWidget(self.grid_widget)
+            self.grid_widget.deleteLater()
+        size = len(self.matrix)
+        self.button_size = max(4, 260 // size)
+        self.grid_widget = FixedGridWidget(size, size, self.button_size, 0)
+        self.buttons = []
+        pattern = self.pattern_combo.currentText() if hasattr(self, "pattern_combo") else "Forest"
+        color1, color2 = self.pattern_colors[pattern]
+        for row_index in range(size):
+            row = []
+            for col_index in range(size):
+                color = color1 if self.matrix[row_index][col_index] == 1 else color2
+                button = ColorChangingButton(color, row_index, col_index)
+                button.paintRequested.connect(self.paint_grid_cell)
+                self.grid_widget.addButton(button, row_index, col_index)
+                row.append(button)
+            self.buttons.append(row)
+        self.grid_container_layout.addWidget(self.grid_widget, alignment=Qt.AlignCenter)
 
-    def update_mirrored_buttons(self, row, col):
+    def resize_grid(self, size):
+        before = [row[:] for row in self.matrix]
+        old_size = len(self.matrix)
+        self.matrix = [
+            [self.matrix[min(old_size - 1, row * old_size // size)][min(old_size - 1, col * old_size // size)] for col in range(size)]
+            for row in range(size)
+        ]
+        self.rebuild_grid()
+        self.grid_brush_size_slider.setMaximum(min(10, size))
+        self.update_matrix()
+        self.record_grid_change(before)
+
+    def paint_grid_cell(self, row, col):
+        before = [row[:] for row in self.matrix]
+        value = 0 if self.grid_tool_combo.currentText() == "Erase" else 1
+        brush_size = self.grid_brush_size_slider.value()
+        start = -(brush_size // 2)
+        for dr in range(start, start + brush_size):
+            for dc in range(start, start + brush_size):
+                brush_row, brush_col = row + dr, col + dc
+                if 0 <= brush_row < len(self.matrix) and 0 <= brush_col < len(self.matrix):
+                    self.matrix[brush_row][brush_col] = value
+                    self.update_mirrored_buttons(brush_row, brush_col, update_colors=False)
+        self.update_button_colors()
+        self.record_grid_change(before)
+
+    def record_grid_change(self, before):
+        if before == self.matrix:
+            return
+        self.undo_stack.append(before)
+        self.redo_stack.clear()
+        self.refresh_grid_history()
+
+    def refresh_grid_history(self):
+        self.undo_button.setEnabled(bool(self.undo_stack))
+        self.redo_button.setEnabled(bool(self.redo_stack))
+        self.clear_button.setEnabled(any(value for row in self.matrix for value in row))
+
+    def clear_grid(self):
+        before = [row[:] for row in self.matrix]
+        self.matrix = [[0] * len(self.matrix) for _ in self.matrix]
+        self.update_button_colors()
+        self.record_grid_change(before)
+
+    def undo_grid(self):
+        if not self.undo_stack:
+            return
+        self.redo_stack.append([row[:] for row in self.matrix])
+        self.matrix = self.undo_stack.pop()
+        self.set_grid_size_value()
+        self.rebuild_grid()
+        self.update_button_colors()
+        self.refresh_grid_history()
+
+    def redo_grid(self):
+        if not self.redo_stack:
+            return
+        self.undo_stack.append([row[:] for row in self.matrix])
+        self.matrix = self.redo_stack.pop()
+        self.set_grid_size_value()
+        self.rebuild_grid()
+        self.update_button_colors()
+        self.refresh_grid_history()
+
+    def set_grid_size_value(self):
+        self.grid_size_spin.blockSignals(True)
+        self.grid_size_spin.setValue(len(self.matrix))
+        self.grid_size_spin.blockSignals(False)
+        self.grid_brush_size_slider.setMaximum(min(10, len(self.matrix)))
+
+    def update_mirrored_buttons(self, row, col, update_colors=True):
         mirroring = self.mirroring_combo.currentText()
+        last = len(self.matrix) - 1
         if mirroring == "horizontal":
-            mirrored_row = 4 - row
+            mirrored_row = last - row
             self.matrix[mirrored_row][col] = self.matrix[row][col]
         elif mirroring == "vertical":
-            mirrored_col = 4 - col
+            mirrored_col = last - col
             self.matrix[row][mirrored_col] = self.matrix[row][col]
         elif mirroring == "both":
-            mirrored_row = 4 - row
-            mirrored_col = 4 - col
+            mirrored_row = last - row
+            mirrored_col = last - col
             self.matrix[mirrored_row][col] = self.matrix[row][col]
             self.matrix[row][mirrored_col] = self.matrix[row][col]
             self.matrix[mirrored_row][mirrored_col] = self.matrix[row][col]
         elif mirroring == "diagonal1":
             self.matrix[col][row] = self.matrix[row][col]
         elif mirroring == "diagonal2":
-            mirrored_row = 4 - col
-            mirrored_col = 4 - row
+            mirrored_row = last - col
+            mirrored_col = last - row
             self.matrix[mirrored_row][mirrored_col] = self.matrix[row][col]
 
-        self.update_button_colors()
+        if update_colors:
+            self.update_button_colors()
 
     def update_matrix(self):
-        for row in range(5):
-            for col in range(5):
+        for row in range(len(self.matrix)):
+            for col in range(len(self.matrix[row])):
                 self.update_mirrored_buttons(row, col)
 
     def update_colors(self):

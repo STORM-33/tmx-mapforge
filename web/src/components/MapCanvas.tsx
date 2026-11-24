@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { HillDrawingMode, Polygon, RenderMode, WizardSnapshot } from "@/lib/types";
 import type { ExtractedTilesets } from "@/lib/tilesetExtractor";
 import { renderOverlay, renderSnapshotBase } from "@/lib/canvasRenderer";
@@ -8,6 +8,7 @@ import { mirrorPolygonVertices } from "@/lib/polygonUtils";
 
 type InteractionMode = "none" | "draw" | "click" | "polygon";
 type RenderPreference = RenderMode | "auto";
+type DrawPhase = "start" | "continue" | "end" | "single";
 
 // Depth colors for polygon mode visualization
 const DEPTH_COLORS = [
@@ -36,7 +37,7 @@ type MapCanvasProps = {
   drawingPolygon?: Polygon | null;
   selectedPolygonId?: number | null;
   selectedEdgeIndex?: number | null;
-  onDraw?: (points: [number, number][], value: 0 | 1 | 2) => void;
+  onDraw?: (points: [number, number][], value: 0 | 1 | 2, phase: DrawPhase) => void;
   onClickCell?: (row: number, col: number, isRightClick: boolean) => void;
   onPolygonClick?: (row: number, col: number) => void;
   onPolygonRightClick?: () => void;
@@ -84,12 +85,97 @@ export function MapCanvas({
   const baseCanvasRef = useRef<HTMLCanvasElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const polygonCanvasRef = useRef<HTMLCanvasElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const activeRenderModeRef = useRef<RenderMode>("sampled");
   const drawingRef = useRef(false);
+  const activeDrawValueRef = useRef<0 | 1 | 2>(1);
+  const panningRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startScrollLeft: number;
+    startScrollTop: number;
+    moved: boolean;
+  } | null>(null);
   const lastCellRef = useRef<string>("");
   const cursorCellRef = useRef<{ row: number; col: number } | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const zoomRef = useRef(1);
+  const pendingZoomAnchorRef = useRef<{
+    xRatio: number;
+    yRatio: number;
+    viewportX: number;
+    viewportY: number;
+  } | null>(null);
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+
+  const updateZoom = useCallback((nextZoom: number) => {
+    const boundedZoom = Math.max(0.5, Math.min(4, nextZoom));
+    zoomRef.current = boundedZoom;
+    setZoom(boundedZoom);
+  }, []);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      const mapCanvas = viewport.querySelector<HTMLElement>(".map-canvas");
+      if (!mapCanvas || mapCanvas.clientWidth === 0 || mapCanvas.clientHeight === 0) return;
+
+      event.preventDefault();
+      const viewportRect = viewport.getBoundingClientRect();
+      const mapRect = mapCanvas.getBoundingClientRect();
+      const xRatio = Math.max(0, Math.min(1, (event.clientX - mapRect.left) / mapRect.width));
+      const yRatio = Math.max(0, Math.min(1, (event.clientY - mapRect.top) / mapRect.height));
+      const nextZoom = Math.max(
+        0.5,
+        Math.min(4, zoomRef.current * Math.exp(-event.deltaY * 0.0015)),
+      );
+      if (nextZoom === zoomRef.current) return;
+
+      pendingZoomAnchorRef.current = {
+        xRatio,
+        yRatio,
+        viewportX: event.clientX - viewportRect.left,
+        viewportY: event.clientY - viewportRect.top,
+      };
+      updateZoom(nextZoom);
+    };
+
+    viewport.addEventListener("wheel", handleWheel, { passive: false });
+    return () => viewport.removeEventListener("wheel", handleWheel);
+  }, [updateZoom]);
+
+  useLayoutEffect(() => {
+    const anchor = pendingZoomAnchorRef.current;
+    const viewport = viewportRef.current;
+    const mapCanvas = viewport?.querySelector<HTMLElement>(".map-canvas");
+    if (!anchor || !viewport || !mapCanvas) return;
+
+    const viewportRect = viewport.getBoundingClientRect();
+    const mapRect = mapCanvas.getBoundingClientRect();
+    const mapOriginX = mapRect.left - viewportRect.left + viewport.scrollLeft;
+    const mapOriginY = mapRect.top - viewportRect.top + viewport.scrollTop;
+    viewport.scrollLeft = mapOriginX + anchor.xRatio * mapCanvas.clientWidth - anchor.viewportX;
+    viewport.scrollTop = mapOriginY + anchor.yRatio * mapCanvas.clientHeight - anchor.viewportY;
+    pendingZoomAnchorRef.current = null;
+  }, [zoom]);
 
   const dimensions = useMemo(() => getDimensions(snapshot), [snapshot]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setViewportSize((previous) =>
+        previous.width === width && previous.height === height ? previous : { width, height },
+      );
+    });
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, []);
 
   // Compute mirrored ghost polygons
   const mirroredPolygons = useMemo(() => {
@@ -396,17 +482,30 @@ export function MapCanvas({
     if (!cell) {
       return;
     }
+    if (event.button === 2) {
+      event.preventDefault();
+      const viewport = viewportRef.current;
+      if (!viewport) return;
+      panningRef.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        startScrollLeft: viewport.scrollLeft,
+        startScrollTop: viewport.scrollTop,
+        moved: false,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      event.currentTarget.classList.add("is-panning");
+      return;
+    }
     if (interactionMode === "polygon") {
-      if (event.button === 2) {
-        event.preventDefault();
-        onPolygonRightClick?.();
-      } else if (event.button === 0) {
+      if (event.button === 0) {
         onPolygonClick?.(cell.row, cell.col);
       }
       return;
     }
-    if (interactionMode === "click" && (event.button === 0 || event.button === 2)) {
-      onClickCell?.(cell.row, cell.col, event.button === 2);
+    if (interactionMode === "click" && event.button === 0) {
+      onClickCell?.(cell.row, cell.col, false);
       return;
     }
     if (interactionMode !== "draw") {
@@ -416,11 +515,28 @@ export function MapCanvas({
     (event.currentTarget as HTMLDivElement).setPointerCapture(event.pointerId);
     drawingRef.current = true;
     const value: 0 | 1 | 2 = event.button === 2 || eraseMode ? 0 : drawValue;
-    onDraw?.([[cell.row, cell.col]], value);
+    activeDrawValueRef.current = value;
+    onDraw?.([[cell.row, cell.col]], value, "start");
     lastCellRef.current = `${cell.row}:${cell.col}:${value}`;
   };
 
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const pan = panningRef.current;
+    if (pan && pan.pointerId === event.pointerId) {
+      const deltaX = event.clientX - pan.startX;
+      const deltaY = event.clientY - pan.startY;
+      if (Math.abs(deltaX) + Math.abs(deltaY) > 4) pan.moved = true;
+      if (pan.moved) {
+        event.preventDefault();
+        const viewport = viewportRef.current;
+        if (viewport) {
+          viewport.scrollLeft = pan.startScrollLeft - deltaX;
+          viewport.scrollTop = pan.startScrollTop - deltaY;
+        }
+        return;
+      }
+    }
+
     // Update cursor position for polygon preview line
     if (interactionMode === "polygon") {
       const cell = eventToCell(event);
@@ -437,7 +553,7 @@ export function MapCanvas({
     if (!cell) {
       return;
     }
-    const value: 0 | 1 | 2 = event.buttons & 2 || eraseMode ? 0 : drawValue;
+    const value = activeDrawValueRef.current;
     const marker = `${cell.row}:${cell.col}:${value}`;
     if (marker === lastCellRef.current) {
       return;
@@ -452,17 +568,38 @@ export function MapCanvas({
         const cells = interpolateCells(prevRow, prevCol, cell.row, cell.col);
         // Skip the first cell — it was already drawn in the previous event
         if (cells.length > 1) {
-          onDraw?.(cells.slice(1), value);
+          onDraw?.(cells.slice(1), value, "continue");
           return;
         }
       }
     }
-    onDraw?.([[cell.row, cell.col]], value);
+    onDraw?.([[cell.row, cell.col]], value, "continue");
   };
 
   const stopDrawing = (event: React.PointerEvent<HTMLDivElement>) => {
+    const currentTarget = event.currentTarget as HTMLDivElement;
+    const pan = panningRef.current;
+    if (pan && pan.pointerId === event.pointerId) {
+      if (!pan.moved && event.type === "pointerup") {
+        const cell = eventToCell(event);
+        if (cell) {
+          if (interactionMode === "polygon") {
+            onPolygonRightClick?.();
+          } else if (interactionMode === "click") {
+            onClickCell?.(cell.row, cell.col, true);
+          } else if (interactionMode === "draw") {
+            onDraw?.([[cell.row, cell.col]], 0, "single");
+          }
+        }
+      }
+      panningRef.current = null;
+      currentTarget.classList.remove("is-panning");
+    }
     if (drawingRef.current) {
-      (event.currentTarget as HTMLDivElement).releasePointerCapture(event.pointerId);
+      onDraw?.([], activeDrawValueRef.current, "end");
+    }
+    if ((drawingRef.current || pan?.pointerId === event.pointerId) && currentTarget.hasPointerCapture(event.pointerId)) {
+      currentTarget.releasePointerCapture(event.pointerId);
     }
     drawingRef.current = false;
     lastCellRef.current = "";
@@ -471,19 +608,37 @@ export function MapCanvas({
   const widthExpr = dimensions
     ? `min(100%, calc((100vh - 14rem) * ${dimensions.cols} / ${dimensions.rows}))`
     : "min(100%, calc(100vh - 14rem))";
+  const aspectRatio = dimensions ? dimensions.cols / dimensions.rows : 1;
+  const availableWidth = Math.max(0, viewportSize.width - 16);
+  const availableHeight = Math.max(0, viewportSize.height - 16);
+  const fitWidth = availableWidth > 0 && availableHeight > 0
+    ? Math.min(availableWidth, availableHeight * aspectRatio)
+    : 0;
+  const canvasWidth = fitWidth > 0 ? `${fitWidth * zoom}px` : widthExpr;
 
   return (
-    <div
-      className={`map-canvas ${interactionMode}`}
-      style={{ width: widthExpr }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={stopDrawing}
-      onContextMenu={(event) => event.preventDefault()}
-    >
-      <canvas id={`${canvasIdPrefix}-base`} ref={baseCanvasRef} className="map-layer" />
-      <canvas id={`${canvasIdPrefix}-overlay`} ref={overlayCanvasRef} className="map-layer overlay" />
-      <canvas id={`${canvasIdPrefix}-polygon`} ref={polygonCanvasRef} className="map-layer overlay" />
+    <div className="map-viewer">
+      <div className="map-zoom-controls" role="group" aria-label="Map zoom controls">
+        <button type="button" aria-label="Zoom out" title="Zoom out" onClick={() => updateZoom(zoom - 0.25)} disabled={zoom <= 0.5}>−</button>
+        <span aria-live="polite">{Math.round(zoom * 100)}%</span>
+        <button type="button" aria-label="Zoom in" title="Zoom in" onClick={() => updateZoom(zoom + 0.25)} disabled={zoom >= 4}>+</button>
+        <button type="button" onClick={() => updateZoom(1)} disabled={zoom === 1}>Fit</button>
+      </div>
+      <div className="map-canvas-viewport" ref={viewportRef}>
+        <div
+          className={`map-canvas ${interactionMode}`}
+          style={{ width: canvasWidth }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={stopDrawing}
+          onPointerCancel={stopDrawing}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          <canvas id={`${canvasIdPrefix}-base`} ref={baseCanvasRef} className="map-layer" />
+          <canvas id={`${canvasIdPrefix}-overlay`} ref={overlayCanvasRef} className="map-layer overlay" />
+          <canvas id={`${canvasIdPrefix}-polygon`} ref={polygonCanvasRef} className="map-layer overlay" />
+        </div>
+      </div>
     </div>
   );
 }
