@@ -25,6 +25,6 @@
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "wasm-pack": "^0.14.0"
+    "wasm-pack": "^0.15.1"
   }
 }

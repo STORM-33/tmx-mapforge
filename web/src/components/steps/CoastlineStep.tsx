@@ -2,6 +2,7 @@
 
 import { useCallback, useRef } from "react";
 import { NumberInput } from "@/components/NumberInput";
+import { GridEditor } from "@/components/GridEditor";
 
 type CoastlineMode = "grid" | "image";
 
@@ -16,7 +17,7 @@ type CoastlineStepProps = {
   disabled?: boolean;
   animating?: boolean;
   animationProgress?: string;
-  onToggleCell: (row: number, col: number) => void;
+  onGridChange: (grid: number[][]) => void;
   onHeightChange: (value: number) => void;
   onWidthChange: (value: number) => void;
   onMirroringChange: (value: string) => void;
@@ -251,7 +252,7 @@ export function CoastlineStep({
   disabled,
   animating,
   animationProgress,
-  onToggleCell,
+  onGridChange,
   onHeightChange,
   onWidthChange,
   onMirroringChange,
@@ -304,20 +305,7 @@ export function CoastlineStep({
 
       {mode === "grid" ? (
         <>
-          <p>Toggle the 5x5 seed grid, then generate mirrored coastline terrain.</p>
-          <div className="coast-grid">
-            {grid.map((row, rowIndex) =>
-              row.map((value, colIndex) => (
-                <button
-                  key={`${rowIndex}-${colIndex}`}
-                  type="button"
-                  className={`grid-cell ${value ? "on" : "off"}`}
-                  onClick={() => onToggleCell(rowIndex, colIndex)}
-                  disabled={isDisabled}
-                />
-              )),
-            )}
-          </div>
+          <GridEditor grid={grid} mirroring={mirroring} disabled={isDisabled} onGridChange={onGridChange} />
           <div className="control-grid">
             <label>
               Height

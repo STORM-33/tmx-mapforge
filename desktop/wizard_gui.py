@@ -379,10 +379,12 @@ class CoastlineStepPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.undo_stack = []
+        self.redo_stack = []
         layout = QVBoxLayout()
 
-        # 5x5 grid
-        self.button_size = 40
+        # 10x10 coastline seed grid
+        self.button_size = 26
         self.grid_spacing = 5
         self.pattern_colors = {
             "Forest": (QColor("green"), QColor("blue")),
@@ -391,29 +393,58 @@ class CoastlineStepPanel(QWidget):
             "Desert": (QColor("yellow"), QColor("brown")),
             "Jungle": (QColor("green"), QColor("blue")),
         }
-        self.matrix = [
+        base_matrix = [
             [1, 0, 1, 0, 1],
             [1, 1, 0, 1, 1],
             [1, 0, 1, 0, 1],
             [1, 1, 0, 1, 1],
             [1, 0, 1, 0, 1],
         ]
+        self.matrix = [
+            expanded_row[:]
+            for row in base_matrix
+            for expanded_row in ([cell for value in row for cell in (value, value)],) * 2
+        ]
 
-        self.grid_widget = FixedGridWidget(5, 5, self.button_size, self.grid_spacing)
-        self.buttons = []
-        default_pattern = "Forest"
-        color1, color2 = self.pattern_colors[default_pattern]
-        for i in range(5):
-            row = []
-            for j in range(5):
-                color = color1 if self.matrix[i][j] == 1 else color2
-                button = ColorChangingButton(color, i, j)
-                button.clicked.connect(self._button_clicked)
-                self.grid_widget.addButton(button, i, j)
-                row.append(button)
-            self.buttons.append(row)
+        grid_controls = QHBoxLayout()
+        self.grid_size_spin = QSpinBox()
+        self.grid_size_spin.setRange(5, 30)
+        self.grid_size_spin.setValue(len(self.matrix))
+        self.grid_size_spin.valueChanged.connect(self.resize_grid)
+        grid_controls.addWidget(QLabel("Grid size (5-30):"))
+        grid_controls.addWidget(self.grid_size_spin)
+        self.grid_tool_combo = QComboBox()
+        self.grid_tool_combo.addItems(["Brush", "Erase"])
+        grid_controls.addWidget(self.grid_tool_combo)
+        layout.addLayout(grid_controls)
+        grid_history_controls = QHBoxLayout()
+        self.undo_button = QPushButton("Undo")
+        self.undo_button.clicked.connect(self.undo_grid)
+        grid_history_controls.addWidget(self.undo_button)
+        self.redo_button = QPushButton("Redo")
+        self.redo_button.clicked.connect(self.redo_grid)
+        grid_history_controls.addWidget(self.redo_button)
+        self.clear_button = QPushButton("Clear")
+        self.clear_button.clicked.connect(self.clear_grid)
+        grid_history_controls.addWidget(self.clear_button)
+        layout.addLayout(grid_history_controls)
+        brush_size_controls = QHBoxLayout()
+        self.grid_brush_size_label = QLabel("Brush / Eraser size: 1")
+        brush_size_controls.addWidget(self.grid_brush_size_label)
+        self.grid_brush_size_slider = QSlider(Qt.Horizontal)
+        self.grid_brush_size_slider.setRange(1, min(10, len(self.matrix)))
+        self.grid_brush_size_slider.setValue(1)
+        self.grid_brush_size_slider.valueChanged.connect(
+            lambda value: self.grid_brush_size_label.setText(f"Brush / Eraser size: {value}")
+        )
+        brush_size_controls.addWidget(self.grid_brush_size_slider, 1)
+        layout.addLayout(brush_size_controls)
 
-        layout.addWidget(self.grid_widget, alignment=Qt.AlignCenter)
+        self.grid_container = QWidget()
+        self.grid_container_layout = QVBoxLayout(self.grid_container)
+        self.grid_container_layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.grid_container, alignment=Qt.AlignCenter)
+        self.rebuild_grid()
 
         # Dimensions
         dims_layout = QHBoxLayout()
@@ -461,6 +492,7 @@ class CoastlineStepPanel(QWidget):
 
         self.setLayout(layout)
         self._update_matrix()
+        self.refresh_grid_history()
 
     def get_matrix(self):
         return [row[:] for row in self.matrix]
@@ -468,37 +500,122 @@ class CoastlineStepPanel(QWidget):
     def get_pattern_index(self):
         return list(self.pattern_colors.keys()).index(self.pattern_combo.currentText()) + 1
 
-    def _button_clicked(self):
-        sender = self.sender()
-        r, c = sender.row, sender.col
-        self.matrix[r][c] = 1 - self.matrix[r][c]
-        self._update_mirrored(r, c)
+    def rebuild_grid(self):
+        if hasattr(self, "grid_widget"):
+            self.grid_container_layout.removeWidget(self.grid_widget)
+            self.grid_widget.deleteLater()
+        size = len(self.matrix)
+        self.button_size = max(4, 260 // size)
+        self.grid_widget = FixedGridWidget(size, size, self.button_size, 0)
+        self.buttons = []
+        pattern = self.pattern_combo.currentText() if hasattr(self, "pattern_combo") else "Forest"
+        color1, color2 = self.pattern_colors[pattern]
+        for row_index in range(size):
+            row = []
+            for col_index in range(size):
+                color = color1 if self.matrix[row_index][col_index] == 1 else color2
+                button = ColorChangingButton(color, row_index, col_index)
+                button.paintRequested.connect(self.paint_grid_cell)
+                self.grid_widget.addButton(button, row_index, col_index)
+                row.append(button)
+            self.buttons.append(row)
+        self.grid_container_layout.addWidget(self.grid_widget, alignment=Qt.AlignCenter)
+
+    def resize_grid(self, size):
+        before = [row[:] for row in self.matrix]
+        old_size = len(self.matrix)
+        self.matrix = [
+            [self.matrix[min(old_size - 1, row * old_size // size)][min(old_size - 1, col * old_size // size)] for col in range(size)]
+            for row in range(size)
+        ]
+        self.rebuild_grid()
+        self.grid_brush_size_slider.setMaximum(min(10, size))
+        self._update_matrix()
+        self.record_grid_change(before)
+
+    def paint_grid_cell(self, row, col):
+        before = [line[:] for line in self.matrix]
+        value = 0 if self.grid_tool_combo.currentText() == "Erase" else 1
+        brush_size = self.grid_brush_size_slider.value()
+        start = -(brush_size // 2)
+        for dr in range(start, start + brush_size):
+            for dc in range(start, start + brush_size):
+                brush_row, brush_col = row + dr, col + dc
+                if 0 <= brush_row < len(self.matrix) and 0 <= brush_col < len(self.matrix):
+                    self.matrix[brush_row][brush_col] = value
+                    self._update_mirrored(brush_row, brush_col)
         self._update_button_colors()
+        self.record_grid_change(before)
+
+    def record_grid_change(self, before):
+        if before == self.matrix:
+            return
+        self.undo_stack.append(before)
+        self.redo_stack.clear()
+        self.refresh_grid_history()
+
+    def refresh_grid_history(self):
+        self.undo_button.setEnabled(bool(self.undo_stack))
+        self.redo_button.setEnabled(bool(self.redo_stack))
+        self.clear_button.setEnabled(any(value for row in self.matrix for value in row))
+
+    def clear_grid(self):
+        before = [row[:] for row in self.matrix]
+        self.matrix = [[0] * len(self.matrix) for _ in self.matrix]
+        self._update_button_colors()
+        self.record_grid_change(before)
+
+    def undo_grid(self):
+        if not self.undo_stack:
+            return
+        self.redo_stack.append([row[:] for row in self.matrix])
+        self.matrix = self.undo_stack.pop()
+        self.set_grid_size_value()
+        self.rebuild_grid()
+        self._update_button_colors()
+        self.refresh_grid_history()
+
+    def redo_grid(self):
+        if not self.redo_stack:
+            return
+        self.undo_stack.append([row[:] for row in self.matrix])
+        self.matrix = self.redo_stack.pop()
+        self.set_grid_size_value()
+        self.rebuild_grid()
+        self._update_button_colors()
+        self.refresh_grid_history()
+
+    def set_grid_size_value(self):
+        self.grid_size_spin.blockSignals(True)
+        self.grid_size_spin.setValue(len(self.matrix))
+        self.grid_size_spin.blockSignals(False)
+        self.grid_brush_size_slider.setMaximum(min(10, len(self.matrix)))
 
     def _update_mirrored(self, row, col):
         mirroring = self.mirroring_combo.currentText()
         val = self.matrix[row][col]
+        last = len(self.matrix) - 1
         if mirroring == "horizontal":
-            self.matrix[4 - row][col] = val
+            self.matrix[last - row][col] = val
         elif mirroring == "vertical":
-            self.matrix[row][4 - col] = val
+            self.matrix[row][last - col] = val
         elif mirroring == "both":
-            self.matrix[4 - row][col] = val
-            self.matrix[row][4 - col] = val
-            self.matrix[4 - row][4 - col] = val
+            self.matrix[last - row][col] = val
+            self.matrix[row][last - col] = val
+            self.matrix[last - row][last - col] = val
         elif mirroring == "diagonal1":
             self.matrix[col][row] = val
         elif mirroring == "diagonal2":
-            self.matrix[4 - col][4 - row] = val
+            self.matrix[last - col][last - row] = val
 
     def _update_matrix(self):
-        for r in range(5):
-            for c in range(5):
+        for r in range(len(self.matrix)):
+            for c in range(len(self.matrix[r])):
                 self._update_mirrored(r, c)
         self._update_button_colors()
 
     def _update_button_colors(self):
-        pattern = self.pattern_combo.currentText()
+        pattern = self.pattern_combo.currentText() if hasattr(self, "pattern_combo") else "Forest"
         c1, c2 = self.pattern_colors[pattern]
         for i, row in enumerate(self.buttons):
             for j, btn in enumerate(row):
