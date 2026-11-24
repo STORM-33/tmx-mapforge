@@ -25,7 +25,20 @@ use crate::tiles::{
     DECORATION_TILES_LEVEL_6, DECORATION_TILES_LEVEL_7, TERRAIN_LEVELS,
 };
 
-const UPSCALES: [usize; 9] = [5, 10, 20, 40, 80, 160, 320, 640, 1280];
+/// Number of subdivide passes for a seed with `seed_dimension` cells per side:
+/// the fewest that make it strictly larger than the map's short side, and at
+/// least one. A 5-cell seed gets exactly the counts the old fixed table gave.
+/// Larger seeds start closer to the map size, so they need fewer passes;
+/// running the full count on them only produced detail below one map tile.
+fn upscale_passes(seed_dimension: usize, min_dimension: usize) -> usize {
+    let mut passes = 1;
+    let mut size = seed_dimension.max(1) * 2;
+    while size <= min_dimension {
+        size *= 2;
+        passes += 1;
+    }
+    passes
+}
 
 #[derive(Clone, Debug, Serialize)]
 pub struct CoastlineFrame {
@@ -49,17 +62,13 @@ pub struct QuickGenerateFrame {
 pub fn run_coastline(state: &mut WizardState) -> Vec<CoastlineFrame> {
     let mut frames = Vec::new();
     let min_dimension = state.height.min(state.width);
-    let mut num_upscales = 1;
-    for (idx, upscale) in UPSCALES.iter().enumerate() {
-        if min_dimension >= *upscale {
-            num_upscales = idx + 1;
-        }
-    }
 
     let mut randomized_matrix = state
         .initial_matrix
         .clone()
         .unwrap_or_else(default_seed_matrix);
+    let seed_dimension = randomized_matrix.rows.min(randomized_matrix.cols);
+    let num_upscales = upscale_passes(seed_dimension, min_dimension);
     frames.push(matrix_frame("initial_matrix", &randomized_matrix));
 
     for i in 0..num_upscales {
@@ -1389,15 +1398,13 @@ pub fn draw_brush_walls(
     Ok(())
 }
 
+// History is deliberately unbounded: undo rebuilds the wall matrix by
+// replaying every stroke, so dropping old strokes would erase their walls.
 fn push_brush_history(history: &mut Vec<crate::state::BrushStroke>, stroke: crate::state::BrushStroke) {
     if stroke.points.is_empty() {
         return;
     }
-    const MAX_BRUSH_HISTORY: usize = 100;
     history.push(stroke);
-    if history.len() > MAX_BRUSH_HISTORY {
-        history.remove(0);
-    }
 }
 
 pub fn undo_brush_stroke(state: &mut WizardState) -> Result<(), String> {
@@ -1875,4 +1882,59 @@ fn is_layer_contained(inner: &Layer, outer: &Layer) -> bool {
         .count();
     
     in_outer > samples.len() / 2
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{draw_brush_walls, undo_brush_stroke, upscale_passes};
+    use crate::state::WizardState;
+
+    #[test]
+    fn upscale_passes_matches_the_old_table_for_a_five_cell_seed() {
+        const OLD_TABLE: [usize; 9] = [5, 10, 20, 40, 80, 160, 320, 640, 1280];
+        for min_dimension in 1..=1280 {
+            let mut expected = 1;
+            for (idx, upscale) in OLD_TABLE.iter().enumerate() {
+                if min_dimension >= *upscale {
+                    expected = idx + 1;
+                }
+            }
+            assert_eq!(
+                upscale_passes(5, min_dimension),
+                expected,
+                "map side {min_dimension}"
+            );
+        }
+    }
+
+    #[test]
+    fn upscale_passes_keeps_the_working_matrix_within_twice_the_map() {
+        for seed in 5..=30_usize {
+            for min_dimension in (40..=640_usize).step_by(20) {
+                let side = seed << upscale_passes(seed, min_dimension);
+                assert!(
+                    side > min_dimension && side <= min_dimension * 2,
+                    "seed {seed} on map side {min_dimension} gave {side}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn undo_keeps_strokes_older_than_a_hundred() {
+        let mut state = WizardState::default();
+        state.height = 120;
+        state.width = 4;
+        state.mirroring = "none".to_string();
+        for row in 0..101 {
+            draw_brush_walls(&mut state, &[[row, 1]], 1, 1, true, true).unwrap();
+        }
+
+        undo_brush_stroke(&mut state).unwrap();
+
+        let walls = state.brush_wall_matrix.as_ref().unwrap();
+        assert_eq!(walls.get(0, 1), 1, "the oldest stroke must survive an undo");
+        assert_eq!(walls.get(99, 1), 1);
+        assert_eq!(walls.get(100, 1), 0, "only the newest stroke is undone");
+    }
 }
