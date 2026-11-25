@@ -6,10 +6,12 @@ type ResourceStepProps = {
   numResources: number;
   manualMode: boolean;
   mirrored: boolean;
+  eraseMode: boolean;
   disabled?: boolean;
   onNumResourcesChange: (value: number) => void;
   onManualModeChange: (manual: boolean) => void;
   onMirroredChange: (mirrored: boolean) => void;
+  onEraseModeChange: (erasing: boolean) => void;
   onRandom: () => void;
   onUndo: () => void;
   onClear: () => void;
@@ -19,10 +21,12 @@ export function ResourceStep({
   numResources,
   manualMode,
   mirrored,
+  eraseMode,
   disabled,
   onNumResourcesChange,
   onManualModeChange,
   onMirroredChange,
+  onEraseModeChange,
   onRandom,
   onUndo,
   onClear,
@@ -30,7 +34,7 @@ export function ResourceStep({
   return (
     <section className="panel-section">
       <h2>5. Resources</h2>
-      <p>Place mirrored resource pools manually or generate them automatically.</p>
+      <p>Place mirrored resource pools manually, switch to erase mode to remove individual pools, or generate them automatically.</p>
       <div className="control-grid">
         <label>
           Num Resource Pulls
@@ -64,6 +68,14 @@ export function ResourceStep({
           disabled={disabled}
         >
           Random
+        </button>
+        <button
+          type="button"
+          className={eraseMode ? "active-btn" : "ghost-btn"}
+          onClick={() => onEraseModeChange(!eraseMode)}
+          disabled={disabled || !manualMode}
+        >
+          Eraser
         </button>
       </div>
       <div className="button-row">

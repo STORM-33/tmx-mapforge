@@ -61,6 +61,7 @@ export type WorkerAction =
   | "clear_cc"
   | "place_resource_manual"
   | "remove_resource_manual"
+  | "erase_resource_manual"
   | "place_resource_random"
   | "undo_resource"
   | "clear_resource"

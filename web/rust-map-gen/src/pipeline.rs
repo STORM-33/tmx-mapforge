@@ -857,6 +857,35 @@ pub fn run_remove_resource_manual(state: &mut WizardState, row: i32, col: i32) -
     true
 }
 
+pub fn run_erase_resource_at(state: &mut WizardState, row: i32, col: i32) -> bool {
+    if row < 0 || col < 0 || state.items_matrix.is_none() || state.resource_positions.is_empty() {
+        return false;
+    }
+    let row = row as usize;
+    let col = col as usize;
+    let Some((position_idx, (resource_row, resource_col))) = state
+        .resource_positions
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(idx, pos)| (idx, pos))
+        .filter(|(_, (r, c))| r.abs_diff(row) <= 3 && c.abs_diff(col) <= 3)
+        .min_by_key(|(_, (r, c))| r.abs_diff(row).max(c.abs_diff(col)))
+    else {
+        return false;
+    };
+
+    if let Some(items_matrix) = &mut state.items_matrix {
+        clear_pool(items_matrix, resource_row, resource_col);
+    }
+    state.resource_positions.remove(position_idx);
+    for group in &mut state.resource_groups {
+        group.retain(|position| *position != (resource_row, resource_col));
+    }
+    state.resource_groups.retain(|group| !group.is_empty());
+    true
+}
+
 pub fn undo_last_resource(state: &mut WizardState) {
     if state.resource_groups.is_empty() {
         return;
