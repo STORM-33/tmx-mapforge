@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { NumberInput } from "@/components/NumberInput";
 
@@ -29,10 +29,27 @@ function mirroredCells(row: number, col: number, size: number, mode: string) {
   return [...cells].map((cell) => cell.split(":").map(Number) as [number, number]);
 }
 
+// Every cell one brush dab at (row, col) touches, mirrored copies included.
+// Painting and the hover preview both use this, so they cannot disagree.
+function brushFootprint(row: number, col: number, brushSize: number, size: number, mode: string) {
+  const cells = new Map<string, [number, number]>();
+  const start = -Math.floor(brushSize / 2);
+  for (let dr = start; dr < start + brushSize; dr++) {
+    for (let dc = start; dc < start + brushSize; dc++) {
+      const brushRow = row + dr;
+      const brushCol = col + dc;
+      if (brushRow < 0 || brushCol < 0 || brushRow >= size || brushCol >= size) continue;
+      for (const [r, c] of mirroredCells(brushRow, brushCol, size, mode)) cells.set(`${r}:${c}`, [r, c]);
+    }
+  }
+  return [...cells.values()];
+}
+
 export function GridEditor({ grid, mirroring, disabled, onGridChange }: GridEditorProps) {
   const [tool, setTool] = useState<"brush" | "erase">("brush");
   const [brushSize, setBrushSize] = useState(1);
   const [history, setHistory] = useState({ canUndo: false, canRedo: false });
+  const [hoverCell, setHoverCell] = useState<[number, number] | null>(null);
   const activeBrushSize = Math.min(brushSize, grid.length, 10);
   const isPainting = useRef(false);
   const gridRef = useRef(grid);
@@ -82,29 +99,32 @@ export function GridEditor({ grid, mirroring, disabled, onGridChange }: GridEdit
   const paint = useCallback((row: number, col: number) => {
     const next = cloneGrid(gridRef.current);
     const value = tool === "brush" ? 1 : 0;
-    const start = -Math.floor(activeBrushSize / 2);
-    for (let dr = start; dr < start + activeBrushSize; dr++) {
-      for (let dc = start; dc < start + activeBrushSize; dc++) {
-        const brushRow = row + dr;
-        const brushCol = col + dc;
-        if (brushRow < 0 || brushCol < 0 || brushRow >= next.length || brushCol >= next.length) continue;
-        for (const [r, c] of mirroredCells(brushRow, brushCol, next.length, mirroring)) next[r][c] = value;
-      }
-    }
+    for (const [r, c] of brushFootprint(row, col, activeBrushSize, next.length, mirroring)) next[r][c] = value;
     if (!gridsEqual(gridRef.current, next)) {
       gridRef.current = next;
       onGridChange(next);
     }
   }, [activeBrushSize, mirroring, onGridChange, tool]);
 
+  // Cells the next click would paint, shown as an outline under the cursor.
+  const previewCells = useMemo(() => {
+    if (!hoverCell || disabled) return null;
+    const [row, col] = hoverCell;
+    if (row >= grid.length || col >= grid.length) return null;
+    return new Set(
+      brushFootprint(row, col, activeBrushSize, grid.length, mirroring).map(([r, c]) => `${r}:${c}`),
+    );
+  }, [activeBrushSize, disabled, grid.length, hoverCell, mirroring]);
+
   const resize = (size: number) => {
     const previous = gridRef.current;
     const oldSize = previous.length;
+    // Sample from cell centres: a resize then drops or repeats a middle line.
+    // Sampling from the leading edge dropped the last line when shrinking and
+    // repeated the first when growing, so the shape drifted on every step.
+    const sample = (index: number) => Math.min(oldSize - 1, Math.floor((index + 0.5) * oldSize / size));
     const next = Array.from({ length: size }, (_, row) =>
-      Array.from({ length: size }, (_, col) =>
-        previous[Math.min(oldSize - 1, Math.floor(row * oldSize / size))]
-          [Math.min(oldSize - 1, Math.floor(col * oldSize / size))],
-      ),
+      Array.from({ length: size }, (_, col) => previous[sample(row)][sample(col)]),
     );
     applyGrid(next);
   };
@@ -161,21 +181,28 @@ export function GridEditor({ grid, mirroring, disabled, onGridChange }: GridEdit
         />
       </label>
       <p>Drag to paint cells. Mirroring applies to both tools.</p>
-      <div className="coast-grid" style={{ "--grid-size": grid.length } as CSSProperties}>
+      <div
+        className="coast-grid"
+        style={{ "--grid-size": grid.length } as CSSProperties}
+        onPointerLeave={() => setHoverCell(null)}
+      >
         {grid.map((row, rowIndex) =>
           row.map((value, colIndex) => (
             <button
               key={`${rowIndex}-${colIndex}`}
               type="button"
               aria-label={`Row ${rowIndex + 1}, column ${colIndex + 1}: ${value ? "land" : "water"}`}
-              className={`grid-cell ${value ? "on" : "off"}`}
+              className={`grid-cell ${value ? "on" : "off"}${
+                previewCells?.has(`${rowIndex}:${colIndex}`) ? (tool === "erase" ? " preview-erase" : " preview") : ""
+              }`}
               onPointerDown={(event) => {
                 event.preventDefault();
                 strokeStart.current = cloneGrid(gridRef.current);
                 isPainting.current = true;
                 paint(rowIndex, colIndex);
               }}
-              onPointerEnter={() => {
+              onPointerEnter={(event) => {
+                if (event.pointerType !== "touch") setHoverCell([rowIndex, colIndex]);
                 if (isPainting.current) paint(rowIndex, colIndex);
               }}
               disabled={disabled}
