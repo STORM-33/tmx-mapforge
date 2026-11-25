@@ -414,25 +414,27 @@ export function MapCanvas({
 
       const erasePreview = eraseMode;
       const color = erasePreview ? "#f87171" : "#fde047";
-      const inset = cellSize * 0.08;
+      const lineWidth = Math.min(cellSize, Math.max(0.5, cellSize * 0.06));
       ctx.fillStyle = erasePreview ? "rgba(248, 113, 113, 0.28)" : "rgba(253, 224, 71, 0.25)";
       ctx.strokeStyle = color;
-      ctx.lineWidth = Math.max(0.5, cellSize * 0.06);
+      ctx.lineWidth = lineWidth;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, canvas.width, canvas.height);
+      ctx.clip();
       for (const key of previewCells) {
         const [row, col] = key.split(":").map(Number);
-        ctx.fillRect(
-          col * cellSize + inset,
-          row * cellSize + inset,
-          Math.max(0, cellSize - inset * 2),
-          Math.max(0, cellSize - inset * 2),
-        );
+        const x = col * cellSize;
+        const y = row * cellSize;
+        ctx.fillRect(x, y, cellSize, cellSize);
         ctx.strokeRect(
-          col * cellSize + inset,
-          row * cellSize + inset,
-          Math.max(0, cellSize - inset * 2),
-          Math.max(0, cellSize - inset * 2),
+          x + lineWidth / 2,
+          y + lineWidth / 2,
+          Math.max(0, cellSize - lineWidth),
+          Math.max(0, cellSize - lineWidth),
         );
       }
+      ctx.restore();
     }
 
     // Draw in-progress polygon
