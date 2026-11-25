@@ -428,17 +428,14 @@ export function MapCanvas({
         const y = top * cellSize;
         const width = (right - left) * cellSize;
         const height = (bottom - top) * cellSize;
-        const inset = Math.min(1, Math.floor((Math.min(width, height) - 1) / 2));
-        const lineWidth = Math.min(1, Math.min(width, height) - inset * 2);
-        const previewWidth = Math.max(0, width - inset * 2);
-        const previewHeight = Math.max(0, height - inset * 2);
+        const lineWidth = Math.min(1, Math.min(width, height));
         ctx.lineWidth = lineWidth;
-        ctx.fillRect(x + inset, y + inset, previewWidth, previewHeight);
+        ctx.fillRect(x, y, width, height);
         ctx.strokeRect(
-          x + inset + lineWidth / 2,
-          y + inset + lineWidth / 2,
-          Math.max(0, previewWidth - lineWidth),
-          Math.max(0, previewHeight - lineWidth),
+          x + lineWidth / 2,
+          y + lineWidth / 2,
+          Math.max(0, width - lineWidth),
+          Math.max(0, height - lineWidth),
         );
       }
       ctx.restore();
