@@ -1035,7 +1035,9 @@ pub fn run_finalize(
         }
     }
 
-    add_tree_tiles(&mut items_matrix, &height_map, &units_matrix, &mut rng);
+    if !matches!(state.pattern, 2 | 3) {
+        add_tree_tiles(&mut items_matrix, &height_map, &units_matrix, &mut rng);
+    }
 
     state.id_matrix = Some(id_matrix.clone());
     state.items_matrix = Some(items_matrix.clone());

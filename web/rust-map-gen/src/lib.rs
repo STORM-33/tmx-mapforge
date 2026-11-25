@@ -281,6 +281,9 @@ pub fn rpc_call(method: &str, params_json: &str) -> Result<JsValue, JsValue> {
             "run_finalize" => {
                 let blueprint_xml = get_blueprint_xml(&params)
                     .ok_or_else(|| "Missing blueprintXml for finalize".to_string())?;
+                if let Some(pattern) = get_i32(&params, &["tileset", "pattern"]) {
+                    state.pattern = pattern;
+                }
                 pipeline::run_finalize(&mut state, false)?;
                 let tmx = pipeline::write_tmx(&state, &blueprint_xml)?;
                 Ok(RpcResponse {

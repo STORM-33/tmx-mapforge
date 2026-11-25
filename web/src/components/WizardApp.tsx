@@ -669,6 +669,7 @@ export function WizardApp({ mapEngine }: { mapEngine: UseMapEngineResult }) {
 
     const response = (await runAction("Finalizing map", "run_finalize", {
       blueprintXml,
+      tileset,
     })) as WorkerStepCompleteMessage;
 
     if (response.tmxBytes) {
