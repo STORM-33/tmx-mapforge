@@ -219,7 +219,9 @@ export function MapCanvas({
 
     const { shape, data } = snapshot.matrices.wall_matrix;
     const [rows, cols] = shape;
-    const cellSize = activeRenderModeRef.current === "full" ? 20 : 1;
+    const cellSize = activeRenderModeRef.current === "full"
+      ? 20
+      : Math.max(1, Math.ceil(600 / Math.max(rows, cols)));
 
     const get = (r: number, c: number) =>
       r >= 0 && r < rows && c >= 0 && c < cols ? data[r * cols + c] : 0;
@@ -248,15 +250,19 @@ export function MapCanvas({
   // Polygon overlay rendering
   const renderPolygonOverlay = useCallback(() => {
     const canvas = polygonCanvasRef.current;
-    const baseCanvas = baseCanvasRef.current;
-    if (!canvas || !baseCanvas) return;
-    canvas.width = baseCanvas.width;
-    canvas.height = baseCanvas.height;
+    const overlayCanvas = overlayCanvasRef.current;
+    if (!canvas || !overlayCanvas) return;
+    canvas.width = overlayCanvas.width;
+    canvas.height = overlayCanvas.height;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const cellSize = activeRenderModeRef.current === "full" ? 20 : 1;
+    const cellSize = activeRenderModeRef.current === "full"
+      ? 20
+      : dimensions
+        ? Math.max(1, Math.ceil(600 / Math.max(dimensions.rows, dimensions.cols)))
+        : 1;
 
     const toX = (col: number) => col * cellSize + cellSize / 2;
     const toY = (row: number) => row * cellSize + cellSize / 2;
@@ -414,7 +420,8 @@ export function MapCanvas({
 
       const erasePreview = eraseMode;
       const color = erasePreview ? "#f87171" : "#fde047";
-      const lineWidth = Math.min(cellSize, Math.max(0.5, cellSize * 0.06));
+      const inset = Math.min(1, Math.floor((cellSize - 1) / 2));
+      const lineWidth = Math.min(1, cellSize - inset * 2);
       ctx.fillStyle = erasePreview ? "rgba(248, 113, 113, 0.28)" : "rgba(253, 224, 71, 0.25)";
       ctx.strokeStyle = color;
       ctx.lineWidth = lineWidth;
@@ -426,12 +433,13 @@ export function MapCanvas({
         const [row, col] = key.split(":").map(Number);
         const x = col * cellSize;
         const y = row * cellSize;
-        ctx.fillRect(x, y, cellSize, cellSize);
+        const previewSize = Math.max(0, cellSize - inset * 2);
+        ctx.fillRect(x + inset, y + inset, previewSize, previewSize);
         ctx.strokeRect(
-          x + lineWidth / 2,
-          y + lineWidth / 2,
-          Math.max(0, cellSize - lineWidth),
-          Math.max(0, cellSize - lineWidth),
+          x + inset + lineWidth / 2,
+          y + inset + lineWidth / 2,
+          Math.max(0, previewSize - lineWidth),
+          Math.max(0, previewSize - lineWidth),
         );
       }
       ctx.restore();
