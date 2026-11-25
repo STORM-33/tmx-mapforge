@@ -1035,6 +1035,8 @@ pub fn run_finalize(
         }
     }
 
+    add_tree_tiles(&mut items_matrix, &height_map, &units_matrix, &mut rng);
+
     state.id_matrix = Some(id_matrix.clone());
     state.items_matrix = Some(items_matrix.clone());
     state.completed_step = state.completed_step.max(WizardStep::Finalize as i32);
@@ -1049,6 +1051,26 @@ pub fn run_finalize(
         ));
     }
     Ok(frames)
+}
+
+fn add_tree_tiles(items: &mut Matrix, height_map: &Matrix, units: &Matrix, rng: &mut impl Rng) {
+    // These export_items GIDs are the valid tree variants; GID 31 is the
+    // tileset's question-mark placeholder and is intentionally omitted.
+    const TREE_GIDS: [i32; 5] = [32, 33, 41, 42, 43];
+
+    for r in 0..height_map.rows {
+        for c in 0..height_map.cols {
+            if height_map.get(r, c) <= 0
+                || has_non_zero_in_radius(items, r, c, 3)
+                || has_non_zero_in_radius(units, r, c, 3)
+                || rng.gen::<f64>() >= 0.012
+            {
+                continue;
+            }
+
+            items.set(r, c, TREE_GIDS[rng.gen_range(0..TREE_GIDS.len())]);
+        }
+    }
 }
 
 /// Render polygon walls based on depth matrix per layer.
