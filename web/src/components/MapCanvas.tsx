@@ -390,56 +390,55 @@ export function MapCanvas({
     const brushCursor = cursorCellRef.current;
     if (interactionMode === "draw" && hillMode === "brush" && brushCursor && dimensions) {
       const radius = Math.floor(brushSize / 2);
-      const previewCells = new Set<string>();
-      for (let rowOffset = -radius; rowOffset <= radius; rowOffset++) {
-        for (let colOffset = -radius; colOffset <= radius; colOffset++) {
-          const row = brushCursor.row + rowOffset;
-          const col = brushCursor.col + colOffset;
-          if (row < 0 || row >= dimensions.rows || col < 0 || col >= dimensions.cols) continue;
-
-          const mirrors: [number, number][] = [[row, col]];
-          if (mirroring === "horizontal") mirrors.push([dimensions.rows - 1 - row, col]);
-          if (mirroring === "vertical") mirrors.push([row, dimensions.cols - 1 - col]);
-          if (mirroring === "diagonal1") mirrors.push([col, row]);
-          if (mirroring === "diagonal2") mirrors.push([dimensions.rows - 1 - col, dimensions.cols - 1 - row]);
-          if (mirroring === "both") {
-            mirrors.push(
-              [dimensions.rows - 1 - row, col],
-              [row, dimensions.cols - 1 - col],
-              [dimensions.rows - 1 - row, dimensions.cols - 1 - col],
-            );
-          }
-
-          for (const [mirrorRow, mirrorCol] of mirrors) {
-            if (mirrorRow >= 0 && mirrorRow < dimensions.rows && mirrorCol >= 0 && mirrorCol < dimensions.cols) {
-              previewCells.add(`${mirrorRow}:${mirrorCol}`);
-            }
-          }
+      const previewCenters = new Map<string, [number, number]>();
+      const centers: [number, number][] = [[brushCursor.row, brushCursor.col]];
+      if (mirroring === "horizontal") centers.push([dimensions.rows - 1 - brushCursor.row, brushCursor.col]);
+      if (mirroring === "vertical") centers.push([brushCursor.row, dimensions.cols - 1 - brushCursor.col]);
+      if (mirroring === "diagonal1") centers.push([brushCursor.col, brushCursor.row]);
+      if (mirroring === "diagonal2") {
+        centers.push([dimensions.rows - 1 - brushCursor.col, dimensions.cols - 1 - brushCursor.row]);
+      }
+      if (mirroring === "both") {
+        centers.push(
+          [dimensions.rows - 1 - brushCursor.row, brushCursor.col],
+          [brushCursor.row, dimensions.cols - 1 - brushCursor.col],
+          [dimensions.rows - 1 - brushCursor.row, dimensions.cols - 1 - brushCursor.col],
+        );
+      }
+      for (const [row, col] of centers) {
+        if (row >= 0 && row < dimensions.rows && col >= 0 && col < dimensions.cols) {
+          previewCenters.set(`${row}:${col}`, [row, col]);
         }
       }
 
       const erasePreview = eraseMode;
       const color = erasePreview ? "#f87171" : "#fde047";
-      const inset = Math.min(1, Math.floor((cellSize - 1) / 2));
-      const lineWidth = Math.min(1, cellSize - inset * 2);
       ctx.fillStyle = erasePreview ? "rgba(248, 113, 113, 0.28)" : "rgba(253, 224, 71, 0.25)";
       ctx.strokeStyle = color;
-      ctx.lineWidth = lineWidth;
       ctx.save();
       ctx.beginPath();
       ctx.rect(0, 0, canvas.width, canvas.height);
       ctx.clip();
-      for (const key of previewCells) {
-        const [row, col] = key.split(":").map(Number);
-        const x = col * cellSize;
-        const y = row * cellSize;
-        const previewSize = Math.max(0, cellSize - inset * 2);
-        ctx.fillRect(x + inset, y + inset, previewSize, previewSize);
+      for (const [row, col] of previewCenters.values()) {
+        const top = Math.max(0, row - radius);
+        const left = Math.max(0, col - radius);
+        const bottom = Math.min(dimensions.rows, row + radius + 1);
+        const right = Math.min(dimensions.cols, col + radius + 1);
+        const x = left * cellSize;
+        const y = top * cellSize;
+        const width = (right - left) * cellSize;
+        const height = (bottom - top) * cellSize;
+        const inset = Math.min(1, Math.floor((Math.min(width, height) - 1) / 2));
+        const lineWidth = Math.min(1, Math.min(width, height) - inset * 2);
+        const previewWidth = Math.max(0, width - inset * 2);
+        const previewHeight = Math.max(0, height - inset * 2);
+        ctx.lineWidth = lineWidth;
+        ctx.fillRect(x + inset, y + inset, previewWidth, previewHeight);
         ctx.strokeRect(
           x + inset + lineWidth / 2,
           y + inset + lineWidth / 2,
-          Math.max(0, previewSize - lineWidth),
-          Math.max(0, previewSize - lineWidth),
+          Math.max(0, previewWidth - lineWidth),
+          Math.max(0, previewHeight - lineWidth),
         );
       }
       ctx.restore();
