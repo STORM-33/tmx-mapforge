@@ -31,6 +31,7 @@ type MapCanvasProps = {
   requestedMode: RenderPreference;
   interactionMode: InteractionMode;
   drawValue: 1 | 2;
+  brushSize?: number;
   eraseMode?: boolean;
   canvasIdPrefix?: string;
   polygons?: Polygon[];
@@ -68,6 +69,7 @@ export function MapCanvas({
   requestedMode,
   interactionMode,
   drawValue,
+  brushSize = 1,
   eraseMode = false,
   canvasIdPrefix = "map-canvas",
   polygons = [],
@@ -379,6 +381,60 @@ export function MapCanvas({
       drawGhostPoly(ghost);
     }
 
+    const brushCursor = cursorCellRef.current;
+    if (interactionMode === "draw" && hillMode === "brush" && brushCursor && dimensions) {
+      const radius = Math.floor(brushSize / 2);
+      const previewCells = new Set<string>();
+      for (let rowOffset = -radius; rowOffset <= radius; rowOffset++) {
+        for (let colOffset = -radius; colOffset <= radius; colOffset++) {
+          const row = brushCursor.row + rowOffset;
+          const col = brushCursor.col + colOffset;
+          if (row < 0 || row >= dimensions.rows || col < 0 || col >= dimensions.cols) continue;
+
+          const mirrors: [number, number][] = [[row, col]];
+          if (mirroring === "horizontal") mirrors.push([dimensions.rows - 1 - row, col]);
+          if (mirroring === "vertical") mirrors.push([row, dimensions.cols - 1 - col]);
+          if (mirroring === "diagonal1") mirrors.push([col, row]);
+          if (mirroring === "diagonal2") mirrors.push([dimensions.rows - 1 - col, dimensions.cols - 1 - row]);
+          if (mirroring === "both") {
+            mirrors.push(
+              [dimensions.rows - 1 - row, col],
+              [row, dimensions.cols - 1 - col],
+              [dimensions.rows - 1 - row, dimensions.cols - 1 - col],
+            );
+          }
+
+          for (const [mirrorRow, mirrorCol] of mirrors) {
+            if (mirrorRow >= 0 && mirrorRow < dimensions.rows && mirrorCol >= 0 && mirrorCol < dimensions.cols) {
+              previewCells.add(`${mirrorRow}:${mirrorCol}`);
+            }
+          }
+        }
+      }
+
+      const erasePreview = eraseMode;
+      const color = erasePreview ? "#f87171" : "#fde047";
+      const inset = cellSize * 0.08;
+      ctx.fillStyle = erasePreview ? "rgba(248, 113, 113, 0.28)" : "rgba(253, 224, 71, 0.25)";
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(0.5, cellSize * 0.06);
+      for (const key of previewCells) {
+        const [row, col] = key.split(":").map(Number);
+        ctx.fillRect(
+          col * cellSize + inset,
+          row * cellSize + inset,
+          Math.max(0, cellSize - inset * 2),
+          Math.max(0, cellSize - inset * 2),
+        );
+        ctx.strokeRect(
+          col * cellSize + inset,
+          row * cellSize + inset,
+          Math.max(0, cellSize - inset * 2),
+          Math.max(0, cellSize - inset * 2),
+        );
+      }
+    }
+
     // Draw in-progress polygon
     if (drawingPolygon && drawingPolygon.vertices.length > 0) {
       drawPoly(drawingPolygon, false, true);
@@ -419,7 +475,7 @@ export function MapCanvas({
         }
       }
     }
-  }, [polygons, drawingPolygon, selectedPolygonId, selectedEdgeIndex, hillMode, renderDepthOverlay, mirroredPolygons, mirroring, dimensions]);
+  }, [polygons, drawingPolygon, selectedPolygonId, selectedEdgeIndex, hillMode, renderDepthOverlay, mirroredPolygons, mirroring, dimensions, interactionMode, brushSize, eraseMode, drawValue]);
 
   useEffect(() => {
     renderPolygonOverlay();
@@ -484,6 +540,8 @@ export function MapCanvas({
     }
     if (event.button === 2) {
       event.preventDefault();
+      cursorCellRef.current = null;
+      renderPolygonOverlay();
       const viewport = viewportRef.current;
       if (!viewport) return;
       panningRef.current = {
@@ -499,6 +557,8 @@ export function MapCanvas({
       return;
     }
     if (interactionMode === "polygon") {
+      cursorCellRef.current = cell;
+      renderPolygonOverlay();
       if (event.button === 0) {
         onPolygonClick?.(cell.row, cell.col);
       }
@@ -515,7 +575,9 @@ export function MapCanvas({
     (event.currentTarget as HTMLDivElement).setPointerCapture(event.pointerId);
     drawingRef.current = true;
     const value: 0 | 1 | 2 = event.button === 2 || eraseMode ? 0 : drawValue;
+    cursorCellRef.current = cell;
     activeDrawValueRef.current = value;
+    renderPolygonOverlay();
     onDraw?.([[cell.row, cell.col]], value, "start");
     lastCellRef.current = `${cell.row}:${cell.col}:${value}`;
   };
@@ -537,11 +599,14 @@ export function MapCanvas({
       }
     }
 
-    // Update cursor position for polygon preview line
-    if (interactionMode === "polygon") {
+    // Keep the polygon cursor and brush footprint previews under the pointer.
+    if (interactionMode === "polygon" || (interactionMode === "draw" && hillMode === "brush")) {
       const cell = eventToCell(event);
       cursorCellRef.current = cell;
-      if (drawingPolygon && drawingPolygon.vertices.length > 0) {
+      if (
+        interactionMode === "draw" ||
+        (drawingPolygon && drawingPolygon.vertices.length > 0)
+      ) {
         renderPolygonOverlay();
       }
     }
@@ -632,6 +697,10 @@ export function MapCanvas({
           onPointerMove={onPointerMove}
           onPointerUp={stopDrawing}
           onPointerCancel={stopDrawing}
+          onPointerLeave={() => {
+            cursorCellRef.current = null;
+            renderPolygonOverlay();
+          }}
           onContextMenu={(event) => event.preventDefault()}
         >
           <canvas id={`${canvasIdPrefix}-base`} ref={baseCanvasRef} className="map-layer" />

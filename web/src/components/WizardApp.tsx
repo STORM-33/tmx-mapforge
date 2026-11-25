@@ -966,6 +966,7 @@ export function WizardApp({ mapEngine }: { mapEngine: UseMapEngineResult }) {
             requestedMode="auto"
             interactionMode={interactionMode}
             drawValue={drawValue}
+            brushSize={brushSize}
             eraseMode={eraseMode}
             canvasIdPrefix="wizard-map-canvas"
             // Polygon mode: show polygons, hide brush
@@ -980,7 +981,7 @@ export function WizardApp({ mapEngine }: { mapEngine: UseMapEngineResult }) {
             onPolygonRightClick={showPolygons ? handlePolygonRightClick : undefined}
             // Mode for canvas rendering
             hillMode={currentStep === 1 ? hillMode : null}
-            mirroring={showPolygons ? mirroring : undefined}
+            mirroring={showPolygons || showBrushDraw ? mirroring : undefined}
           />
         </section>
       </div>
