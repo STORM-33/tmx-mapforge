@@ -99,6 +99,18 @@ export function MapCanvas({
     startScrollTop: number;
     moved: boolean;
   } | null>(null);
+  const touchPointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const touchGestureRef = useRef<{
+    pointerIds: [number, number];
+    startDistance: number;
+    startZoom: number;
+    startCenterX: number;
+    startCenterY: number;
+    startScrollLeft: number;
+    startScrollTop: number;
+    anchorX: number;
+    anchorY: number;
+  } | null>(null);
   const lastCellRef = useRef<string>("");
   const cursorCellRef = useRef<{ row: number; col: number } | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -540,6 +552,51 @@ export function MapCanvas({
   };
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "touch") {
+      touchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      const points = [...touchPointersRef.current.entries()];
+      if (points.length >= 2 && touchGestureRef.current) {
+        event.preventDefault();
+        return;
+      }
+      if (points.length >= 2 && !touchGestureRef.current) {
+        const viewport = viewportRef.current;
+        const mapCanvas = event.currentTarget;
+        if (viewport) {
+          const [first, second] = points;
+          const pointerIds: [number, number] = [first[0], second[0]];
+          const firstPoint = first[1];
+          const secondPoint = second[1];
+          const centerX = (firstPoint.x + secondPoint.x) / 2;
+          const centerY = (firstPoint.y + secondPoint.y) / 2;
+          const dx = secondPoint.x - firstPoint.x;
+          const dy = secondPoint.y - firstPoint.y;
+          const mapRect = mapCanvas.getBoundingClientRect();
+          const viewportRect = viewport.getBoundingClientRect();
+          if (drawingRef.current) onDraw?.([], activeDrawValueRef.current, "end");
+          drawingRef.current = false;
+          lastCellRef.current = "";
+          panningRef.current = null;
+          mapCanvas.classList.remove("is-panning");
+          touchGestureRef.current = {
+            pointerIds,
+            startDistance: Math.max(1, Math.hypot(dx, dy)),
+            startZoom: zoomRef.current,
+            startCenterX: centerX,
+            startCenterY: centerY,
+            startScrollLeft: viewport.scrollLeft,
+            startScrollTop: viewport.scrollTop,
+            anchorX: Math.max(0, Math.min(1, (centerX - mapRect.left) / mapRect.width)),
+            anchorY: Math.max(0, Math.min(1, (centerY - mapRect.top) / mapRect.height)),
+          };
+          for (const pointerId of pointerIds) {
+            if (!mapCanvas.hasPointerCapture(pointerId)) mapCanvas.setPointerCapture(pointerId);
+          }
+          event.preventDefault();
+        }
+        return;
+      }
+    }
     const cell = eventToCell(event);
     if (!cell) {
       return;
@@ -550,6 +607,22 @@ export function MapCanvas({
       renderPolygonOverlay();
       const viewport = viewportRef.current;
       if (!viewport) return;
+      panningRef.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        startScrollLeft: viewport.scrollLeft,
+        startScrollTop: viewport.scrollTop,
+        moved: false,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      event.currentTarget.classList.add("is-panning");
+      return;
+    }
+    if (event.pointerType === "touch" && interactionMode === "none") {
+      const viewport = viewportRef.current;
+      if (!viewport) return;
+      event.preventDefault();
       panningRef.current = {
         pointerId: event.pointerId,
         startX: event.clientX,
@@ -589,6 +662,36 @@ export function MapCanvas({
   };
 
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "touch" && touchPointersRef.current.has(event.pointerId)) {
+      touchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      const gesture = touchGestureRef.current;
+      if (gesture) {
+        const first = touchPointersRef.current.get(gesture.pointerIds[0]);
+        const second = touchPointersRef.current.get(gesture.pointerIds[1]);
+        const viewport = viewportRef.current;
+        if (first && second && viewport) {
+          const centerX = (first.x + second.x) / 2;
+          const centerY = (first.y + second.y) / 2;
+          const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
+          const nextZoom = Math.max(0.5, Math.min(4, gesture.startZoom * distance / gesture.startDistance));
+          event.preventDefault();
+          if (Math.abs(nextZoom - zoomRef.current) > 0.001) {
+            const viewportRect = viewport.getBoundingClientRect();
+            pendingZoomAnchorRef.current = {
+              xRatio: gesture.anchorX,
+              yRatio: gesture.anchorY,
+              viewportX: centerX - viewportRect.left,
+              viewportY: centerY - viewportRect.top,
+            };
+            updateZoom(nextZoom);
+          } else {
+            viewport.scrollLeft = gesture.startScrollLeft - (centerX - gesture.startCenterX);
+            viewport.scrollTop = gesture.startScrollTop - (centerY - gesture.startCenterY);
+          }
+        }
+        return;
+      }
+    }
     const pan = panningRef.current;
     if (pan && pan.pointerId === event.pointerId) {
       const deltaX = event.clientX - pan.startX;
@@ -650,6 +753,12 @@ export function MapCanvas({
   const stopDrawing = (event: React.PointerEvent<HTMLDivElement>) => {
     const currentTarget = event.currentTarget as HTMLDivElement;
     const pan = panningRef.current;
+    if (event.pointerType === "touch") {
+      touchPointersRef.current.delete(event.pointerId);
+      if (touchGestureRef.current?.pointerIds.includes(event.pointerId)) {
+        touchGestureRef.current = null;
+      }
+    }
     if (pan && pan.pointerId === event.pointerId) {
       if (!pan.moved && event.type === "pointerup") {
         const cell = eventToCell(event);
@@ -695,6 +804,17 @@ export function MapCanvas({
         <button type="button" aria-label="Zoom in" title="Zoom in" onClick={() => updateZoom(zoom + 0.25)} disabled={zoom >= 4}>+</button>
         <button type="button" onClick={() => updateZoom(1)} disabled={zoom === 1}>Fit</button>
       </div>
+      <p className="map-touch-hint">
+        {interactionMode === "none"
+          ? "Drag to move · pinch to zoom"
+          : interactionMode === "draw"
+            ? "Drag to draw · use two fingers to move and zoom"
+            : interactionMode === "polygon"
+              ? "Tap to add points · use two fingers to move and zoom"
+              : interactionMode === "click"
+                ? "Tap to place · use two fingers to move and zoom"
+                : "Use two fingers to move and zoom"}
+      </p>
       <div className="map-canvas-viewport" ref={viewportRef}>
         <div
           className={`map-canvas ${interactionMode}`}
