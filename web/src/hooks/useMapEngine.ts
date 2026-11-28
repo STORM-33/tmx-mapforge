@@ -113,9 +113,14 @@ export function useMapEngine(): UseMapEngineResult {
     };
 
     worker.addEventListener("message", handleMessage);
-    initPromiseRef.current = sendRequest("init", {
+    const initPromise = sendRequest("init", {
       baseUrl: window.location.origin,
     }).then(() => undefined);
+    // React Strict Mode and Fast Refresh can dispose this worker while init is
+    // still pending. Keep that expected teardown rejection from becoming an
+    // unhandled runtime error; callers awaiting init still receive the reject.
+    void initPromise.catch(() => {});
+    initPromiseRef.current = initPromise;
     const pendingRequests = pendingRef.current;
 
     return () => {
