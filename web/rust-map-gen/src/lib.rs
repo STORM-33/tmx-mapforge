@@ -245,6 +245,19 @@ pub fn rpc_call(method: &str, params_json: &str) -> Result<JsValue, JsValue> {
                     removed: Some(removed),
                 })
             }
+            "erase_resource_manual" => {
+                let row = get_i32(&params, &["row"]).unwrap_or(-1);
+                let col = get_i32(&params, &["col"]).unwrap_or(-1);
+                let removed = pipeline::run_erase_resource_at(&mut state, row, col);
+                Ok(RpcResponse {
+                    snapshot: state.snapshot(),
+                    tmx_bytes: None,
+                    frames: None,
+                    quick_frames: None,
+                    placed: None,
+                    removed: Some(removed),
+                })
+            }
             "place_resource_random" => {
                 if let Some(m) = params.get("mirroring").and_then(Value::as_str) {
                     state.mirroring = m.to_string();
@@ -268,6 +281,9 @@ pub fn rpc_call(method: &str, params_json: &str) -> Result<JsValue, JsValue> {
             "run_finalize" => {
                 let blueprint_xml = get_blueprint_xml(&params)
                     .ok_or_else(|| "Missing blueprintXml for finalize".to_string())?;
+                if let Some(pattern) = get_i32(&params, &["tileset", "pattern"]) {
+                    state.pattern = pattern;
+                }
                 pipeline::run_finalize(&mut state, false)?;
                 let tmx = pipeline::write_tmx(&state, &blueprint_xml)?;
                 Ok(RpcResponse {

@@ -123,6 +123,7 @@ export function WizardApp({ mapEngine }: { mapEngine: UseMapEngineResult }) {
   const [ccMirrored, setCcMirrored] = useState(true);
   const [resourceManual, setResourceManual] = useState(true);
   const [resourceMirrored, setResourceMirrored] = useState(true);
+  const [resourceEraseMode, setResourceEraseMode] = useState(false);
   
   // ========== BRUSH MODE STATE ==========
   const [drawValue, setDrawValue] = useState<1 | 2>(1);
@@ -617,13 +618,17 @@ export function WizardApp({ mapEngine }: { mapEngine: UseMapEngineResult }) {
           });
       } else if (currentStep === 4 && resourceManual) {
         const hasExisting = snapshot?.resource_positions.some(([r, c]) => r === row && c === col);
-        const shouldRemove = isRightClick || hasExisting;
-        const actionName = shouldRemove ? "remove_resource_manual" : "place_resource_manual";
+        const shouldRemove = resourceEraseMode || isRightClick || hasExisting;
+        const actionName = resourceEraseMode
+          ? "erase_resource_manual"
+          : shouldRemove
+            ? "remove_resource_manual"
+            : "place_resource_manual";
         void callAction(actionName, { row, col, mirrored: resourceMirrored, mirroring })
           .then((response) => {
             const newCount = response.snapshot?.resource_positions.length ?? 0;
             if (shouldRemove) {
-              setStatusText("Resource removed.");
+              setStatusText(response.removed ? "Resource removed." : "No resource pool at that spot.");
             } else if (newCount > 0) {
               markStepComplete(4);
               setStatusText(`${newCount} resource positions placed.`);
@@ -638,7 +643,7 @@ export function WizardApp({ mapEngine }: { mapEngine: UseMapEngineResult }) {
           });
       }
     },
-    [callAction, ccManual, currentStep, markStepComplete, mirroring, resourceManual, ccMirrored, resourceMirrored, snapshot?.cc_positions, snapshot?.resource_positions],
+    [callAction, ccManual, currentStep, markStepComplete, mirroring, resourceManual, resourceEraseMode, ccMirrored, resourceMirrored, snapshot?.cc_positions, snapshot?.resource_positions],
   );
 
   const handleFinalize = useCallback(async () => {
@@ -664,6 +669,7 @@ export function WizardApp({ mapEngine }: { mapEngine: UseMapEngineResult }) {
 
     const response = (await runAction("Finalizing map", "run_finalize", {
       blueprintXml,
+      tileset,
     })) as WorkerStepCompleteMessage;
 
     if (response.tmxBytes) {
@@ -893,10 +899,12 @@ export function WizardApp({ mapEngine }: { mapEngine: UseMapEngineResult }) {
           numResources={numResources}
           manualMode={resourceManual}
           mirrored={resourceMirrored}
+          eraseMode={resourceEraseMode}
           disabled={busy || !ready}
           onNumResourcesChange={setNumResources}
           onManualModeChange={setResourceManual}
           onMirroredChange={setResourceMirrored}
+          onEraseModeChange={setResourceEraseMode}
           onRandom={() =>
             void runAction("Placing random resources", "place_resource_random", {
               numResources,
@@ -959,6 +967,7 @@ export function WizardApp({ mapEngine }: { mapEngine: UseMapEngineResult }) {
             requestedMode="auto"
             interactionMode={interactionMode}
             drawValue={drawValue}
+            brushSize={brushSize}
             eraseMode={eraseMode}
             canvasIdPrefix="wizard-map-canvas"
             // Polygon mode: show polygons, hide brush
@@ -973,7 +982,7 @@ export function WizardApp({ mapEngine }: { mapEngine: UseMapEngineResult }) {
             onPolygonRightClick={showPolygons ? handlePolygonRightClick : undefined}
             // Mode for canvas rendering
             hillMode={currentStep === 1 ? hillMode : null}
-            mirroring={showPolygons ? mirroring : undefined}
+            mirroring={showPolygons || showBrushDraw ? mirroring : undefined}
           />
         </section>
       </div>

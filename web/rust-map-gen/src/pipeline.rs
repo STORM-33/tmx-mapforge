@@ -866,6 +866,35 @@ pub fn run_remove_resource_manual(state: &mut WizardState, row: i32, col: i32) -
     true
 }
 
+pub fn run_erase_resource_at(state: &mut WizardState, row: i32, col: i32) -> bool {
+    if row < 0 || col < 0 || state.items_matrix.is_none() || state.resource_positions.is_empty() {
+        return false;
+    }
+    let row = row as usize;
+    let col = col as usize;
+    let Some((position_idx, (resource_row, resource_col))) = state
+        .resource_positions
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(idx, pos)| (idx, pos))
+        .filter(|(_, (r, c))| r.abs_diff(row) <= 3 && c.abs_diff(col) <= 3)
+        .min_by_key(|(_, (r, c))| r.abs_diff(row).max(c.abs_diff(col)))
+    else {
+        return false;
+    };
+
+    if let Some(items_matrix) = &mut state.items_matrix {
+        clear_pool(items_matrix, resource_row, resource_col);
+    }
+    state.resource_positions.remove(position_idx);
+    for group in &mut state.resource_groups {
+        group.retain(|position| *position != (resource_row, resource_col));
+    }
+    state.resource_groups.retain(|group| !group.is_empty());
+    true
+}
+
 pub fn undo_last_resource(state: &mut WizardState) {
     if state.resource_groups.is_empty() {
         return;
@@ -1006,6 +1035,10 @@ pub fn run_finalize(
         }
     }
 
+    if !matches!(state.pattern, 2 | 3) {
+        add_tree_tiles(&mut items_matrix, &height_map, &units_matrix, &mut rng);
+    }
+
     state.id_matrix = Some(id_matrix.clone());
     state.items_matrix = Some(items_matrix.clone());
     state.completed_step = state.completed_step.max(WizardStep::Finalize as i32);
@@ -1020,6 +1053,26 @@ pub fn run_finalize(
         ));
     }
     Ok(frames)
+}
+
+fn add_tree_tiles(items: &mut Matrix, height_map: &Matrix, units: &Matrix, rng: &mut impl Rng) {
+    // These export_items GIDs are the valid tree variants; GID 31 is the
+    // tileset's question-mark placeholder and is intentionally omitted.
+    const TREE_GIDS: [i32; 5] = [32, 33, 41, 42, 43];
+
+    for r in 0..height_map.rows {
+        for c in 0..height_map.cols {
+            if height_map.get(r, c) <= 0
+                || has_non_zero_in_radius(items, r, c, 3)
+                || has_non_zero_in_radius(units, r, c, 3)
+                || rng.gen::<f64>() >= 0.012
+            {
+                continue;
+            }
+
+            items.set(r, c, TREE_GIDS[rng.gen_range(0..TREE_GIDS.len())]);
+        }
+    }
 }
 
 /// Render polygon walls based on depth matrix per layer.

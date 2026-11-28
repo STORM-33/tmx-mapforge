@@ -53,6 +53,9 @@ export function GridEditor({ grid, mirroring, disabled, onGridChange }: GridEdit
   const activeBrushSize = Math.min(brushSize, grid.length, 10);
   const isPainting = useRef(false);
   const gridRef = useRef(grid);
+  const gridElementRef = useRef<HTMLDivElement>(null);
+  const activePointerId = useRef<number | null>(null);
+  const lastPaintedCell = useRef<[number, number] | null>(null);
   const past = useRef<number[][][]>([]);
   const future = useRef<number[][][]>([]);
   const strokeStart = useRef<number[][] | null>(null);
@@ -67,6 +70,8 @@ export function GridEditor({ grid, mirroring, disabled, onGridChange }: GridEdit
 
   const finishStroke = useCallback(() => {
     isPainting.current = false;
+    activePointerId.current = null;
+    lastPaintedCell.current = null;
     const before = strokeStart.current;
     strokeStart.current = null;
     if (before && !gridsEqual(before, gridRef.current)) {
@@ -105,6 +110,52 @@ export function GridEditor({ grid, mirroring, disabled, onGridChange }: GridEdit
       onGridChange(next);
     }
   }, [activeBrushSize, mirroring, onGridChange, tool]);
+
+  const cellAtPoint = (clientX: number, clientY: number): [number, number] | null => {
+    const bounds = gridElementRef.current?.getBoundingClientRect();
+    const size = gridRef.current.length;
+    if (
+      !bounds || bounds.width === 0 || bounds.height === 0 ||
+      clientX < bounds.left || clientY < bounds.top ||
+      clientX >= bounds.right || clientY >= bounds.bottom
+    ) return null;
+    const col = Math.floor((clientX - bounds.left) / bounds.width * size);
+    const row = Math.floor((clientY - bounds.top) / bounds.height * size);
+    return [Math.min(size - 1, row), Math.min(size - 1, col)];
+  };
+
+  const startPainting = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!(event.target instanceof Element) || !event.target.closest(".grid-cell")) return;
+    const cell = cellAtPoint(event.clientX, event.clientY);
+    if (!cell) return;
+    event.preventDefault();
+    strokeStart.current = cloneGrid(gridRef.current);
+    isPainting.current = true;
+    activePointerId.current = event.pointerId;
+    lastPaintedCell.current = cell;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    paint(cell[0], cell[1]);
+  };
+
+  const continuePainting = (event: React.PointerEvent<HTMLDivElement>) => {
+    const cell = cellAtPoint(event.clientX, event.clientY);
+    if (event.pointerType !== "touch") setHoverCell(cell);
+    if (!isPainting.current || activePointerId.current !== event.pointerId || !cell) return;
+    const previous = lastPaintedCell.current;
+    if (previous) {
+      const rowDistance = cell[0] - previous[0];
+      const colDistance = cell[1] - previous[1];
+      const steps = Math.max(Math.abs(rowDistance), Math.abs(colDistance));
+      for (let step = 1; step <= steps; step++) {
+        const row = Math.round(previous[0] + rowDistance * step / steps);
+        const col = Math.round(previous[1] + colDistance * step / steps);
+        paint(row, col);
+      }
+    } else {
+      paint(cell[0], cell[1]);
+    }
+    lastPaintedCell.current = cell;
+  };
 
   // Cells the next click would paint, shown as an outline under the cursor.
   const previewCells = useMemo(() => {
@@ -183,7 +234,12 @@ export function GridEditor({ grid, mirroring, disabled, onGridChange }: GridEdit
       <p>Drag to paint cells. Mirroring applies to both tools.</p>
       <div
         className="coast-grid"
+        ref={gridElementRef}
         style={{ "--grid-size": grid.length } as CSSProperties}
+        onPointerDown={startPainting}
+        onPointerMove={continuePainting}
+        onPointerUp={finishStroke}
+        onPointerCancel={finishStroke}
         onPointerLeave={() => setHoverCell(null)}
       >
         {grid.map((row, rowIndex) =>
@@ -195,16 +251,6 @@ export function GridEditor({ grid, mirroring, disabled, onGridChange }: GridEdit
               className={`grid-cell ${value ? "on" : "off"}${
                 previewCells?.has(`${rowIndex}:${colIndex}`) ? (tool === "erase" ? " preview-erase" : " preview") : ""
               }`}
-              onPointerDown={(event) => {
-                event.preventDefault();
-                strokeStart.current = cloneGrid(gridRef.current);
-                isPainting.current = true;
-                paint(rowIndex, colIndex);
-              }}
-              onPointerEnter={(event) => {
-                if (event.pointerType !== "touch") setHoverCell([rowIndex, colIndex]);
-                if (isPainting.current) paint(rowIndex, colIndex);
-              }}
               disabled={disabled}
             />
           )),

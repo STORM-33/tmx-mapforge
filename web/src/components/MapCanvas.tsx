@@ -31,6 +31,7 @@ type MapCanvasProps = {
   requestedMode: RenderPreference;
   interactionMode: InteractionMode;
   drawValue: 1 | 2;
+  brushSize?: number;
   eraseMode?: boolean;
   canvasIdPrefix?: string;
   polygons?: Polygon[];
@@ -68,6 +69,7 @@ export function MapCanvas({
   requestedMode,
   interactionMode,
   drawValue,
+  brushSize = 1,
   eraseMode = false,
   canvasIdPrefix = "map-canvas",
   polygons = [],
@@ -96,6 +98,18 @@ export function MapCanvas({
     startScrollLeft: number;
     startScrollTop: number;
     moved: boolean;
+  } | null>(null);
+  const touchPointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const touchGestureRef = useRef<{
+    pointerIds: [number, number];
+    startDistance: number;
+    startZoom: number;
+    startCenterX: number;
+    startCenterY: number;
+    startScrollLeft: number;
+    startScrollTop: number;
+    anchorX: number;
+    anchorY: number;
   } | null>(null);
   const lastCellRef = useRef<string>("");
   const cursorCellRef = useRef<{ row: number; col: number } | null>(null);
@@ -217,7 +231,9 @@ export function MapCanvas({
 
     const { shape, data } = snapshot.matrices.wall_matrix;
     const [rows, cols] = shape;
-    const cellSize = activeRenderModeRef.current === "full" ? 20 : 1;
+    const cellSize = activeRenderModeRef.current === "full"
+      ? 20
+      : Math.max(1, Math.ceil(600 / Math.max(rows, cols)));
 
     const get = (r: number, c: number) =>
       r >= 0 && r < rows && c >= 0 && c < cols ? data[r * cols + c] : 0;
@@ -246,15 +262,19 @@ export function MapCanvas({
   // Polygon overlay rendering
   const renderPolygonOverlay = useCallback(() => {
     const canvas = polygonCanvasRef.current;
-    const baseCanvas = baseCanvasRef.current;
-    if (!canvas || !baseCanvas) return;
-    canvas.width = baseCanvas.width;
-    canvas.height = baseCanvas.height;
+    const overlayCanvas = overlayCanvasRef.current;
+    if (!canvas || !overlayCanvas) return;
+    canvas.width = overlayCanvas.width;
+    canvas.height = overlayCanvas.height;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const cellSize = activeRenderModeRef.current === "full" ? 20 : 1;
+    const cellSize = activeRenderModeRef.current === "full"
+      ? 20
+      : dimensions
+        ? Math.max(1, Math.ceil(600 / Math.max(dimensions.rows, dimensions.cols)))
+        : 1;
 
     const toX = (col: number) => col * cellSize + cellSize / 2;
     const toY = (row: number) => row * cellSize + cellSize / 2;
@@ -379,6 +399,60 @@ export function MapCanvas({
       drawGhostPoly(ghost);
     }
 
+    const brushCursor = cursorCellRef.current;
+    if (interactionMode === "draw" && hillMode === "brush" && brushCursor && dimensions) {
+      const radius = Math.floor(brushSize / 2);
+      const previewCenters = new Map<string, [number, number]>();
+      const centers: [number, number][] = [[brushCursor.row, brushCursor.col]];
+      if (mirroring === "horizontal") centers.push([dimensions.rows - 1 - brushCursor.row, brushCursor.col]);
+      if (mirroring === "vertical") centers.push([brushCursor.row, dimensions.cols - 1 - brushCursor.col]);
+      if (mirroring === "diagonal1") centers.push([brushCursor.col, brushCursor.row]);
+      if (mirroring === "diagonal2") {
+        centers.push([dimensions.rows - 1 - brushCursor.col, dimensions.cols - 1 - brushCursor.row]);
+      }
+      if (mirroring === "both") {
+        centers.push(
+          [dimensions.rows - 1 - brushCursor.row, brushCursor.col],
+          [brushCursor.row, dimensions.cols - 1 - brushCursor.col],
+          [dimensions.rows - 1 - brushCursor.row, dimensions.cols - 1 - brushCursor.col],
+        );
+      }
+      for (const [row, col] of centers) {
+        if (row >= 0 && row < dimensions.rows && col >= 0 && col < dimensions.cols) {
+          previewCenters.set(`${row}:${col}`, [row, col]);
+        }
+      }
+
+      const erasePreview = eraseMode;
+      const color = erasePreview ? "#f87171" : "#fde047";
+      ctx.fillStyle = erasePreview ? "rgba(248, 113, 113, 0.28)" : "rgba(253, 224, 71, 0.25)";
+      ctx.strokeStyle = color;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, canvas.width, canvas.height);
+      ctx.clip();
+      for (const [row, col] of previewCenters.values()) {
+        const top = Math.max(0, row - radius);
+        const left = Math.max(0, col - radius);
+        const bottom = Math.min(dimensions.rows, row + radius + 1);
+        const right = Math.min(dimensions.cols, col + radius + 1);
+        const x = left * cellSize;
+        const y = top * cellSize;
+        const width = (right - left) * cellSize;
+        const height = (bottom - top) * cellSize;
+        const lineWidth = Math.min(1, Math.min(width, height));
+        ctx.lineWidth = lineWidth;
+        ctx.fillRect(x, y, width, height);
+        ctx.strokeRect(
+          x + lineWidth / 2,
+          y + lineWidth / 2,
+          Math.max(0, width - lineWidth),
+          Math.max(0, height - lineWidth),
+        );
+      }
+      ctx.restore();
+    }
+
     // Draw in-progress polygon
     if (drawingPolygon && drawingPolygon.vertices.length > 0) {
       drawPoly(drawingPolygon, false, true);
@@ -419,7 +493,7 @@ export function MapCanvas({
         }
       }
     }
-  }, [polygons, drawingPolygon, selectedPolygonId, selectedEdgeIndex, hillMode, renderDepthOverlay, mirroredPolygons, mirroring, dimensions]);
+  }, [polygons, drawingPolygon, selectedPolygonId, selectedEdgeIndex, hillMode, renderDepthOverlay, mirroredPolygons, mirroring, dimensions, interactionMode, brushSize, eraseMode, drawValue]);
 
   useEffect(() => {
     renderPolygonOverlay();
@@ -478,12 +552,59 @@ export function MapCanvas({
   };
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "touch") {
+      touchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      const points = [...touchPointersRef.current.entries()];
+      if (points.length >= 2 && touchGestureRef.current) {
+        event.preventDefault();
+        return;
+      }
+      if (points.length >= 2 && !touchGestureRef.current) {
+        const viewport = viewportRef.current;
+        const mapCanvas = event.currentTarget;
+        if (viewport) {
+          const [first, second] = points;
+          const pointerIds: [number, number] = [first[0], second[0]];
+          const firstPoint = first[1];
+          const secondPoint = second[1];
+          const centerX = (firstPoint.x + secondPoint.x) / 2;
+          const centerY = (firstPoint.y + secondPoint.y) / 2;
+          const dx = secondPoint.x - firstPoint.x;
+          const dy = secondPoint.y - firstPoint.y;
+          const mapRect = mapCanvas.getBoundingClientRect();
+          const viewportRect = viewport.getBoundingClientRect();
+          if (drawingRef.current) onDraw?.([], activeDrawValueRef.current, "end");
+          drawingRef.current = false;
+          lastCellRef.current = "";
+          panningRef.current = null;
+          mapCanvas.classList.remove("is-panning");
+          touchGestureRef.current = {
+            pointerIds,
+            startDistance: Math.max(1, Math.hypot(dx, dy)),
+            startZoom: zoomRef.current,
+            startCenterX: centerX,
+            startCenterY: centerY,
+            startScrollLeft: viewport.scrollLeft,
+            startScrollTop: viewport.scrollTop,
+            anchorX: Math.max(0, Math.min(1, (centerX - mapRect.left) / mapRect.width)),
+            anchorY: Math.max(0, Math.min(1, (centerY - mapRect.top) / mapRect.height)),
+          };
+          for (const pointerId of pointerIds) {
+            if (!mapCanvas.hasPointerCapture(pointerId)) mapCanvas.setPointerCapture(pointerId);
+          }
+          event.preventDefault();
+        }
+        return;
+      }
+    }
     const cell = eventToCell(event);
     if (!cell) {
       return;
     }
     if (event.button === 2) {
       event.preventDefault();
+      cursorCellRef.current = null;
+      renderPolygonOverlay();
       const viewport = viewportRef.current;
       if (!viewport) return;
       panningRef.current = {
@@ -498,7 +619,25 @@ export function MapCanvas({
       event.currentTarget.classList.add("is-panning");
       return;
     }
+    if (event.pointerType === "touch" && interactionMode === "none") {
+      const viewport = viewportRef.current;
+      if (!viewport) return;
+      event.preventDefault();
+      panningRef.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        startScrollLeft: viewport.scrollLeft,
+        startScrollTop: viewport.scrollTop,
+        moved: false,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      event.currentTarget.classList.add("is-panning");
+      return;
+    }
     if (interactionMode === "polygon") {
+      cursorCellRef.current = cell;
+      renderPolygonOverlay();
       if (event.button === 0) {
         onPolygonClick?.(cell.row, cell.col);
       }
@@ -515,12 +654,44 @@ export function MapCanvas({
     (event.currentTarget as HTMLDivElement).setPointerCapture(event.pointerId);
     drawingRef.current = true;
     const value: 0 | 1 | 2 = event.button === 2 || eraseMode ? 0 : drawValue;
+    cursorCellRef.current = cell;
     activeDrawValueRef.current = value;
+    renderPolygonOverlay();
     onDraw?.([[cell.row, cell.col]], value, "start");
     lastCellRef.current = `${cell.row}:${cell.col}:${value}`;
   };
 
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "touch" && touchPointersRef.current.has(event.pointerId)) {
+      touchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      const gesture = touchGestureRef.current;
+      if (gesture) {
+        const first = touchPointersRef.current.get(gesture.pointerIds[0]);
+        const second = touchPointersRef.current.get(gesture.pointerIds[1]);
+        const viewport = viewportRef.current;
+        if (first && second && viewport) {
+          const centerX = (first.x + second.x) / 2;
+          const centerY = (first.y + second.y) / 2;
+          const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
+          const nextZoom = Math.max(0.5, Math.min(4, gesture.startZoom * distance / gesture.startDistance));
+          event.preventDefault();
+          if (Math.abs(nextZoom - zoomRef.current) > 0.001) {
+            const viewportRect = viewport.getBoundingClientRect();
+            pendingZoomAnchorRef.current = {
+              xRatio: gesture.anchorX,
+              yRatio: gesture.anchorY,
+              viewportX: centerX - viewportRect.left,
+              viewportY: centerY - viewportRect.top,
+            };
+            updateZoom(nextZoom);
+          } else {
+            viewport.scrollLeft = gesture.startScrollLeft - (centerX - gesture.startCenterX);
+            viewport.scrollTop = gesture.startScrollTop - (centerY - gesture.startCenterY);
+          }
+        }
+        return;
+      }
+    }
     const pan = panningRef.current;
     if (pan && pan.pointerId === event.pointerId) {
       const deltaX = event.clientX - pan.startX;
@@ -537,11 +708,14 @@ export function MapCanvas({
       }
     }
 
-    // Update cursor position for polygon preview line
-    if (interactionMode === "polygon") {
+    // Keep the polygon cursor and brush footprint previews under the pointer.
+    if (interactionMode === "polygon" || (interactionMode === "draw" && hillMode === "brush")) {
       const cell = eventToCell(event);
       cursorCellRef.current = cell;
-      if (drawingPolygon && drawingPolygon.vertices.length > 0) {
+      if (
+        interactionMode === "draw" ||
+        (drawingPolygon && drawingPolygon.vertices.length > 0)
+      ) {
         renderPolygonOverlay();
       }
     }
@@ -579,6 +753,12 @@ export function MapCanvas({
   const stopDrawing = (event: React.PointerEvent<HTMLDivElement>) => {
     const currentTarget = event.currentTarget as HTMLDivElement;
     const pan = panningRef.current;
+    if (event.pointerType === "touch") {
+      touchPointersRef.current.delete(event.pointerId);
+      if (touchGestureRef.current?.pointerIds.includes(event.pointerId)) {
+        touchGestureRef.current = null;
+      }
+    }
     if (pan && pan.pointerId === event.pointerId) {
       if (!pan.moved && event.type === "pointerup") {
         const cell = eventToCell(event);
@@ -624,6 +804,17 @@ export function MapCanvas({
         <button type="button" aria-label="Zoom in" title="Zoom in" onClick={() => updateZoom(zoom + 0.25)} disabled={zoom >= 4}>+</button>
         <button type="button" onClick={() => updateZoom(1)} disabled={zoom === 1}>Fit</button>
       </div>
+      <p className="map-touch-hint">
+        {interactionMode === "none"
+          ? "Drag to move · pinch to zoom"
+          : interactionMode === "draw"
+            ? "Drag to draw · use two fingers to move and zoom"
+            : interactionMode === "polygon"
+              ? "Tap to add points · use two fingers to move and zoom"
+              : interactionMode === "click"
+                ? "Tap to place · use two fingers to move and zoom"
+                : "Use two fingers to move and zoom"}
+      </p>
       <div className="map-canvas-viewport" ref={viewportRef}>
         <div
           className={`map-canvas ${interactionMode}`}
@@ -632,6 +823,10 @@ export function MapCanvas({
           onPointerMove={onPointerMove}
           onPointerUp={stopDrawing}
           onPointerCancel={stopDrawing}
+          onPointerLeave={() => {
+            cursorCellRef.current = null;
+            renderPolygonOverlay();
+          }}
           onContextMenu={(event) => event.preventDefault()}
         >
           <canvas id={`${canvasIdPrefix}-base`} ref={baseCanvasRef} className="map-layer" />

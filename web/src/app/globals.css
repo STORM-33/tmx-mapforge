@@ -1,7 +1,11 @@
-@import "tailwindcss";
-
 :root {
   color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {
@@ -79,7 +83,18 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
+}
+
+.mode-content {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.mode-content[hidden] {
+  display: none;
 }
 
 .wizard-shell {
@@ -554,6 +569,10 @@ button:disabled {
   text-align: center;
 }
 
+.map-touch-hint {
+  display: none;
+}
+
 .map-canvas-viewport {
   flex: 1;
   min-width: 0;
@@ -574,6 +593,10 @@ button:disabled {
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+
+.map-canvas {
+  touch-action: none;
 }
 
 .map-canvas.draw {
@@ -666,10 +689,34 @@ button:disabled {
 
   .wizard-main {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(220px, 0.8fr) minmax(300px, 1.2fr);
+    overflow-y: auto;
+  }
+
+  .wizard-preview {
+    min-height: 18rem;
   }
 }
 
 @media (max-width: 600px) {
+  button:not(.grid-cell) {
+    min-height: 2.75rem;
+  }
+
+  select,
+  input[type="number"] {
+    min-height: 2.75rem;
+  }
+
+  input[type="range"] {
+    min-height: 2.75rem;
+    touch-action: pan-x;
+  }
+
+  .coast-grid {
+    width: min(100%, 20rem);
+  }
+
   .mode-toggle {
     flex-wrap: wrap;
     padding: 0.35rem 0.5rem 0;
@@ -686,6 +733,12 @@ button:disabled {
 
   .nav-btn {
     padding: 0.3rem 0.5rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  .mode-btn {
+    min-height: 2.75rem;
   }
 
   .nav-btn-label {
@@ -694,6 +747,101 @@ button:disabled {
 
   .wizard-header h1 {
     font-size: 1rem;
+  }
+
+  .app-shell {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .mode-toggle {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    padding-top: max(0.35rem, env(safe-area-inset-top));
+    padding-right: max(0.5rem, env(safe-area-inset-right));
+    padding-left: max(0.5rem, env(safe-area-inset-left));
+    background: #0f172a;
+  }
+
+  .mode-content {
+    display: block;
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+
+  .wizard-shell {
+    min-height: calc(100dvh - 3rem);
+    padding: 0.5rem max(0.65rem, env(safe-area-inset-right))
+      calc(0.75rem + env(safe-area-inset-bottom))
+      max(0.65rem, env(safe-area-inset-left));
+    overflow: visible;
+  }
+
+  .wizard-header {
+    align-items: flex-start;
+    gap: 0.3rem;
+  }
+
+  .wizard-main {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .wizard-panel {
+    flex: none;
+    overflow: visible;
+    padding: 0.75rem;
+  }
+
+  .wizard-preview {
+    flex: none;
+    height: 55dvh;
+    min-height: 18rem;
+    max-height: 34rem;
+  }
+
+  .step-btn {
+    min-height: 2.75rem;
+    font-size: 0.68rem;
+  }
+
+  .map-zoom-controls button {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  .map-touch-hint {
+    display: block;
+    margin: -0.2rem 0 0.35rem;
+    color: #94a3b8;
+    font-size: 0.72rem;
+    text-align: right;
+  }
+
+  .wizard-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    margin: 0 -0.75rem -0.5rem;
+    padding: 0.5rem 0.75rem max(0.5rem, env(safe-area-inset-bottom));
+    border-top: 1px solid #1e293b;
+    background: #0f172a;
+  }
+}
+
+@media (max-width: 380px) {
+  .control-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mode-btn {
+    padding-right: 0.55rem;
+    padding-left: 0.55rem;
   }
 }
 
